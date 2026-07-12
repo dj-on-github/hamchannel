@@ -2,7 +2,6 @@
 /// transmitter and receiver.
 library;
 
-import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'fft.dart';

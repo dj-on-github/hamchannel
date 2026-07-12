@@ -17,7 +17,6 @@ import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart' as crypto;
 
-import '../dsp/modem_params.dart';
 import '../modem/modem.dart';
 import 'packets.dart';
 
@@ -265,7 +264,6 @@ class LinkManager {
   int _msgSeq = 1;
   int _fileSeq = 1;
   int _reqSeq = 1;
-  int _burstSeq = 1;
 
   final List<_OutMsg> _msgs = [];
   final List<_Outgoing> _outgoing = [];

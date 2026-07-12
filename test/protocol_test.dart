@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
@@ -27,7 +26,7 @@ class Station {
   int burstsSent = 0;
 
   /// Returns true if [blockIdx] of burst number [burstNo] should be lost.
-  bool Function(int burstNo, int blockIdx) lossFn = (_, __) => false;
+  bool Function(int burstNo, int blockIdx) lossFn = (_, _) => false;
 
   static const rate = LdpcRate.half;
   static int get userBytes => ModemTransmitter.blockUserBytes(rate);
