@@ -83,10 +83,11 @@ macOS: microphone permission is requested on first start
 `DebugProfile.entitlements` / `Release.entitlements`).
 
 Linux: audio capture uses PulseAudio's `parecord` (works under PipeWire via
-`pipewire-pulse`); install it with:
+`pipewire-pulse`), and building the playback engine (flutter_soloud /
+miniaudio) needs the ALSA development headers:
 
 ```bash
-sudo apt install pulseaudio-utils
+sudo apt install pulseaudio-utils libasound2-dev
 ```
 
 ## Tests
