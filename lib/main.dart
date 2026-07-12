@@ -1,122 +1,204 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'dart:io';
 
-void main() {
-  runApp(const MyApp());
+import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'audio/audio_backend.dart';
+import 'audio/real_audio.dart';
+import 'modem/modem.dart';
+import 'modem/modem_service.dart';
+import 'ui/channel_tab.dart';
+import 'ui/files_tab.dart';
+import 'ui/messages_tab.dart';
+import 'ui/send_files_tab.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final prefs = await SharedPreferences.getInstance();
+  final cfgJson = prefs.getString('config');
+  final config = cfgJson != null
+      ? AppConfig.fromJson(jsonDecode(cfgJson) as Map<String, Object?>)
+      : AppConfig();
+
+  final docs = await getApplicationDocumentsDirectory();
+  final base = Directory('${docs.path}/hamchannel');
+
+  final service = ModemService(
+    config: config,
+    backendFactory: (cfg) =>
+        cfg.useLoopback ? LoopbackAudioBackend() : RealAudioBackend(),
+    sharedDir: Directory('${base.path}/shared'),
+    recvDir: Directory('${base.path}/received'),
+    onPersistConfig: () =>
+        prefs.setString('config', jsonEncode(config.toJson())),
+  );
+
+  runApp(HamChannelApp(service: service));
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class HamChannelApp extends StatelessWidget {
+  const HamChannelApp({super.key, required this.service});
 
-  // This widget is the root of your application.
+  final ModemService service;
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'HamChannel',
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        brightness: Brightness.dark,
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2E7D32),
+          brightness: Brightness.dark,
+        ),
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: HomeScreen(service: service),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key, required this.service});
 
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+  final ModemService service;
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabs =
+      TabController(length: 4, vsync: this);
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
+    final s = widget.service;
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
-      ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
+        title: const Text('HamChannel — OFDM/LDPC soundcard modem'),
+        bottom: TabBar(
+          controller: _tabs,
+          tabs: const [
+            Tab(icon: Icon(Icons.chat), text: 'Messages'),
+            Tab(icon: Icon(Icons.upload_file), text: 'Send Files'),
+            Tab(icon: Icon(Icons.folder_shared), text: 'Files'),
+            Tab(icon: Icon(Icons.tune), text: 'Channel'),
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
+      body: Column(
+        children: [
+          Expanded(
+            child: TabBarView(
+              controller: _tabs,
+              children: [
+                MessagesTab(service: s),
+                SendFilesTab(service: s),
+                FilesTab(service: s),
+                ChannelTab(service: s),
+              ],
+            ),
+          ),
+          StatusBar(service: s),
+        ],
       ),
+    );
+  }
+}
+
+class StatusBar extends StatelessWidget {
+  const StatusBar({super.key, required this.service});
+
+  final ModemService service;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: service,
+      builder: (context, _) {
+        final s = service;
+        final theme = Theme.of(context);
+        Color stateColor;
+        String stateText;
+        if (!s.running) {
+          stateColor = Colors.grey;
+          stateText = 'STOPPED';
+        } else if (s.transmitting) {
+          stateColor = Colors.redAccent;
+          stateText = 'TX';
+        } else if (s.rxState == RxState.collecting) {
+          stateColor = Colors.amber;
+          stateText = 'RX SIGNAL';
+        } else {
+          stateColor = Colors.lightGreen;
+          stateText = 'LISTENING';
+        }
+        final level = (s.rxLevel * 100).clamp(0, 100).toDouble();
+        return Material(
+          color: theme.colorScheme.surfaceContainerHighest,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: stateColor.withValues(alpha: 0.25),
+                    border: Border.all(color: stateColor),
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(stateText,
+                      style: TextStyle(
+                          color: stateColor, fontWeight: FontWeight.bold)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    s.lastError.isNotEmpty ? s.lastError : s.statusLine,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: s.lastError.isNotEmpty
+                          ? Colors.redAccent
+                          : theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text('RX '),
+                SizedBox(
+                  width: 90,
+                  child: LinearProgressIndicator(
+                    value: (level / 100).clamp(0.0, 1.0),
+                    minHeight: 8,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Text('SNR ${s.lastSnrDb.toStringAsFixed(1)} dB'),
+                const SizedBox(width: 12),
+                FilledButton.icon(
+                  onPressed: () => s.running ? s.stop() : s.start(),
+                  icon: Icon(s.running ? Icons.stop : Icons.play_arrow),
+                  label: Text(s.running ? 'Stop' : 'Start'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
