@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../audio/real_audio.dart';
 import '../dsp/modem_params.dart';
 import '../modem/modem_service.dart';
 
@@ -19,6 +20,18 @@ class _ChannelTabState extends State<ChannelTab> {
       TextEditingController(text: widget.service.config.myCall);
   late final TextEditingController _remoteCall =
       TextEditingController(text: widget.service.config.remoteCall);
+
+  @override
+  void initState() {
+    super.initState();
+    // Populate the audio device pulldowns once on first open.
+    if (widget.service.inputDevices.isEmpty &&
+        widget.service.outputDevices.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.service.refreshAudioDevices();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -135,6 +148,44 @@ class _ChannelTabState extends State<ChannelTab> {
                       style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
                   Row(children: [
+                    Expanded(
+                      child: _deviceDrop(
+                        label: 'Audio input (from radio)',
+                        value: cfg.inputDeviceId,
+                        devices: s.inputDevices,
+                        onChanged: (id, label) => setState(() {
+                          cfg.inputDeviceId = id;
+                          cfg.inputDeviceLabel = label;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _deviceDrop(
+                        label: 'Audio output (to radio)',
+                        value: cfg.outputDeviceName,
+                        devices: s.outputDevices,
+                        onChanged: (id, _) => setState(() {
+                          cfg.outputDeviceName = id;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      tooltip: 'Rescan audio devices',
+                      onPressed:
+                          s.enumeratingDevices ? null : s.refreshAudioDevices,
+                      icon: s.enumeratingDevices
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.refresh),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
+                  Row(children: [
                     const SizedBox(width: 4),
                     const Text('TX level'),
                     Expanded(
@@ -226,6 +277,51 @@ class _ChannelTabState extends State<ChannelTab> {
           ),
         );
       },
+    );
+  }
+
+  /// Device pulldown: null value = system default. Keeps a stale saved
+  /// selection visible even if the device is currently unplugged.
+  Widget _deviceDrop({
+    required String label,
+    required String? value,
+    required List<AudioDeviceInfo> devices,
+    required void Function(String? id, String label) onChanged,
+  }) {
+    final ids = devices.map((d) => d.id).toSet();
+    return InputDecorator(
+      decoration:
+          InputDecoration(labelText: label, border: const OutlineInputBorder()),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: value,
+          isExpanded: true,
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('System default'),
+            ),
+            for (final d in devices)
+              DropdownMenuItem<String?>(
+                value: d.id,
+                child: Text(d.label, overflow: TextOverflow.ellipsis),
+              ),
+            if (value != null && !ids.contains(value))
+              DropdownMenuItem<String?>(
+                value: value,
+                child: Text('$value (not connected)',
+                    overflow: TextOverflow.ellipsis),
+              ),
+          ],
+          onChanged: (id) {
+            String lbl = '';
+            for (final d in devices) {
+              if (d.id == id) lbl = d.label;
+            }
+            onChanged(id, lbl);
+          },
+        ),
+      ),
     );
   }
 

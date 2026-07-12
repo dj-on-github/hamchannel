@@ -16,10 +16,11 @@ dependencies:
   crypto: ^3.0.3
   # Native file-open dialogs for the Send Files tab.
   file_picker: ^10.1.0
-  # Microphone capture (48 kHz PCM16 stream).
+  # Microphone capture (48 kHz PCM16 stream) with input device selection.
   record: ^6.0.0
-  # Raw PCM playback stream (miniaudio based, all desktops).
-  mp_audio_stream: ^0.1.5
+  # PCM playback (miniaudio based, all desktops) with output device
+  # selection.
+  flutter_soloud: ^4.0.0
   # Standard locations for the received/shared folders.
   path_provider: ^2.1.0
   # Config persistence.

@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../audio/audio_backend.dart';
+import '../audio/real_audio.dart';
 import '../dsp/modem_params.dart';
 import '../proto/link.dart';
 import 'modem.dart';
@@ -24,6 +25,11 @@ class AppConfig {
   int ackTimeoutSec = 15;
   bool useLoopback = false;
 
+  /// Audio device selection; null = system default.
+  String? inputDeviceId;
+  String inputDeviceLabel = '';
+  String? outputDeviceName;
+
   Map<String, Object?> toJson() => {
         'width': width.name,
         'modulation': modulation.name,
@@ -35,6 +41,9 @@ class AppConfig {
         'maxChunksPerBurst': maxChunksPerBurst,
         'ackTimeoutSec': ackTimeoutSec,
         'useLoopback': useLoopback,
+        'inputDeviceId': inputDeviceId,
+        'inputDeviceLabel': inputDeviceLabel,
+        'outputDeviceName': outputDeviceName,
       };
 
   static AppConfig fromJson(Map<String, Object?> j) {
@@ -54,6 +63,9 @@ class AppConfig {
         (j['maxChunksPerBurst'] as num?)?.toInt() ?? c.maxChunksPerBurst;
     c.ackTimeoutSec = (j['ackTimeoutSec'] as num?)?.toInt() ?? c.ackTimeoutSec;
     c.useLoopback = (j['useLoopback'] as bool?) ?? c.useLoopback;
+    c.inputDeviceId = j['inputDeviceId'] as String?;
+    c.inputDeviceLabel = (j['inputDeviceLabel'] as String?) ?? '';
+    c.outputDeviceName = j['outputDeviceName'] as String?;
     return c;
   }
 }
@@ -104,6 +116,27 @@ class ModemService extends ChangeNotifier {
   final List<String> log = [];
   final Map<String, TransferEvent> transfers = {};
   String remoteListing = '';
+
+  /// Available audio devices (filled by [refreshAudioDevices]).
+  List<AudioDeviceInfo> inputDevices = [];
+  List<AudioDeviceInfo> outputDevices = [];
+  bool enumeratingDevices = false;
+
+  Future<void> refreshAudioDevices() async {
+    if (enumeratingDevices) return;
+    enumeratingDevices = true;
+    notifyListeners();
+    try {
+      final lists = await RealAudioBackend.enumerateDevices();
+      inputDevices = lists.inputs;
+      outputDevices = lists.outputs;
+    } catch (e) {
+      _addLog('audio device enumeration failed: $e');
+    } finally {
+      enumeratingDevices = false;
+      notifyListeners();
+    }
+  }
   double get rxLevel => _rx?.rxRms ?? 0;
   double get lastSnrDb => _rx?.lastSnrDb ?? 0;
   RxState get rxState => _rx?.state ?? RxState.searching;

@@ -1,5 +1,6 @@
-/// Real sound-card backend: `record` for capture, `mp_audio_stream` for
-/// playback. Both run at 48 kHz mono.
+/// Real sound-card backend: `record` for capture, `flutter_soloud`
+/// (miniaudio) for playback. Both run at 48 kHz mono, and both directions
+/// support selecting a specific audio device from the Channel tab.
 ///
 /// Wiring to the radio:
 ///   * laptop headphone out  -> radio mic input (through an attenuator or
@@ -13,18 +14,42 @@ library;
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:mp_audio_stream/mp_audio_stream.dart';
+import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:record/record.dart';
 
 import 'audio_backend.dart';
 
+/// A selectable audio device (either direction).
+class AudioDeviceInfo {
+  const AudioDeviceInfo({required this.id, required this.label});
+
+  /// Platform device identifier (input: record's device id; output: the
+  /// device name, which is stabler across restarts than soloud's index).
+  final String id;
+  final String label;
+}
+
+class AudioDeviceLists {
+  const AudioDeviceLists({required this.inputs, required this.outputs});
+  final List<AudioDeviceInfo> inputs;
+  final List<AudioDeviceInfo> outputs;
+}
+
 class RealAudioBackend implements AudioBackend {
-  RealAudioBackend();
+  RealAudioBackend({
+    this.inputDeviceId,
+    this.inputDeviceLabel = '',
+    this.outputDeviceName,
+  });
 
   static const int sampleRate = 48000;
 
+  /// Requested devices; null = system default.
+  final String? inputDeviceId;
+  final String inputDeviceLabel;
+  final String? outputDeviceName;
+
   final AudioRecorder _rec = AudioRecorder();
-  AudioStream? _out;
   final _rx = StreamController<Float64List>.broadcast();
   StreamSubscription<Uint8List>? _recSub;
   bool _playing = false;
@@ -37,31 +62,89 @@ class RealAudioBackend implements AudioBackend {
   @override
   bool get isPlaying => _playing;
 
+  /// Enumerate capture and playback devices. Safe to call while the modem
+  /// is stopped; initializes the playback engine temporarily if needed.
+  static Future<AudioDeviceLists> enumerateDevices() async {
+    final inputs = <AudioDeviceInfo>[];
+    final outputs = <AudioDeviceInfo>[];
+    final rec = AudioRecorder();
+    try {
+      for (final d in await rec.listInputDevices()) {
+        inputs.add(AudioDeviceInfo(id: d.id, label: d.label));
+      }
+    } catch (_) {
+      // Leave the list empty; UI falls back to "System default".
+    } finally {
+      await rec.dispose();
+    }
+    final so = SoLoud.instance;
+    final wasInited = so.isInitialized;
+    try {
+      if (!wasInited) {
+        await so.init(sampleRate: sampleRate, channels: Channels.mono);
+      }
+      for (final d in so.listPlaybackDevices()) {
+        outputs.add(AudioDeviceInfo(
+          id: d.name,
+          label: d.isDefault ? '${d.name} (default)' : d.name,
+        ));
+      }
+      if (!wasInited) so.deinit();
+    } catch (_) {}
+    return AudioDeviceLists(inputs: inputs, outputs: outputs);
+  }
+
   @override
   Future<void> start() async {
     if (_started) return;
     // --- playback ---
-    final out = getAudioStream();
-    out.init(
-      sampleRate: sampleRate,
-      channels: 1,
-      bufferMilliSec: 4000,
-      waitingBufferMilliSec: 60,
-    );
-    _out = out;
+    final so = SoLoud.instance;
+    if (!so.isInitialized) {
+      await so.init(sampleRate: sampleRate, channels: Channels.mono);
+    }
+    if (outputDeviceName != null) {
+      try {
+        final devs = so.listPlaybackDevices();
+        for (final d in devs) {
+          if (d.name == outputDeviceName) {
+            so.changeDevice(newDevice: d);
+            break;
+          }
+        }
+      } catch (e) {
+        lastError = 'output device select failed: $e';
+      }
+    }
 
     // --- capture ---
     if (!await _rec.hasPermission()) {
       throw StateError('Microphone permission denied');
     }
-    final stream = await _rec.startStream(RecordConfig(
-      encoder: AudioEncoder.pcm16bits,
-      sampleRate: sampleRate,
-      numChannels: 1,
-      echoCancel: false,
-      noiseSuppress: false,
-      autoGain: false,
-    ));
+    final Stream<Uint8List> stream;
+    try {
+      stream = await _rec.startStream(RecordConfig(
+        encoder: AudioEncoder.pcm16bits,
+        sampleRate: sampleRate,
+        numChannels: 1,
+        device: inputDeviceId == null
+            ? null
+            : InputDevice(id: inputDeviceId!, label: inputDeviceLabel),
+        echoCancel: false,
+        noiseSuppress: false,
+        autoGain: false,
+      ));
+    } catch (e) {
+      final msg = '$e';
+      if (msg.contains('parecord') || msg.contains('pulse')) {
+        // The record plugin's Linux backend shells out to PulseAudio's
+        // parecord (also provided by pipewire-pulse setups).
+        throw StateError(
+            'Audio capture on Linux needs the PulseAudio tools: '
+            'install them with "sudo apt install pulseaudio-utils" '
+            'and press Start again. ($e)');
+      }
+      rethrow;
+    }
     _recSub = stream.listen((bytes) {
       // pcm16 little-endian -> float
       final n = bytes.length ~/ 2;
@@ -79,9 +162,10 @@ class RealAudioBackend implements AudioBackend {
 
   @override
   Future<void> playBurst(Float64List samples) async {
-    final out = _out;
-    if (out == null) throw StateError('audio not started');
+    final so = SoLoud.instance;
+    if (!so.isInitialized) throw StateError('audio not started');
     _playing = true;
+    AudioSource? src;
     try {
       final f32 = Float32List(samples.length);
       for (var i = 0; i < samples.length; i++) {
@@ -92,11 +176,26 @@ class RealAudioBackend implements AudioBackend {
                 ? -1.0
                 : v.toDouble();
       }
-      out.push(f32);
+      src = so.setBufferStream(
+        maxBufferSizeBytes: samples.length * 4 + 4096,
+        bufferingType: BufferingType.released,
+        bufferingTimeNeeds: 0,
+        sampleRate: sampleRate,
+        channels: Channels.mono,
+        format: BufferType.f32le,
+      );
+      so.addAudioDataStream(src, f32.buffer.asUint8List());
+      so.setDataIsEnded(src);
+      so.play(src);
       // Wait for the burst duration plus a small guard.
       final ms = (samples.length * 1000 / sampleRate).ceil() + 150;
       await Future<void>.delayed(Duration(milliseconds: ms));
     } finally {
+      if (src != null) {
+        try {
+          await so.disposeSource(src);
+        } catch (_) {}
+      }
       _playing = false;
     }
   }
@@ -104,9 +203,14 @@ class RealAudioBackend implements AudioBackend {
   @override
   Future<void> stop() async {
     await _recSub?.cancel();
-    await _rec.stop();
-    await _rec.dispose();
-    _out?.uninit();
+    try {
+      await _rec.stop();
+      await _rec.dispose();
+    } catch (_) {}
+    try {
+      final so = SoLoud.instance;
+      if (so.isInitialized) so.deinit();
+    } catch (_) {}
     _started = false;
   }
 }

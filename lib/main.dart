@@ -28,8 +28,13 @@ Future<void> main() async {
 
   final service = ModemService(
     config: config,
-    backendFactory: (cfg) =>
-        cfg.useLoopback ? LoopbackAudioBackend() : RealAudioBackend(),
+    backendFactory: (cfg) => cfg.useLoopback
+        ? LoopbackAudioBackend()
+        : RealAudioBackend(
+            inputDeviceId: cfg.inputDeviceId,
+            inputDeviceLabel: cfg.inputDeviceLabel,
+            outputDeviceName: cfg.outputDeviceName,
+          ),
     sharedDir: Directory('${base.path}/shared'),
     recvDir: Directory('${base.path}/received'),
     onPersistConfig: () =>

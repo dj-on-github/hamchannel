@@ -50,7 +50,8 @@ for reliable file delivery.
 3. **Files** — files received from the other end, plus "request from
    remote": fetch the remote shared-folder listing or request by name.
 4. **Channel** — narrow/wide, subcarrier modulation, LDPC rate, callsigns,
-   TX level, VOX leader length, loopback test mode.
+   audio input/output device selection, TX level, VOX leader length,
+   loopback test mode.
 
 ## Radio wiring (VOX keying)
 
@@ -80,6 +81,13 @@ macOS: microphone permission is requested on first start
 (`NSMicrophoneUsageDescription` is set in `macos/Runner/Info.plist`; the
 `com.apple.security.device.audio-input` entitlement must be present in
 `DebugProfile.entitlements` / `Release.entitlements`).
+
+Linux: audio capture uses PulseAudio's `parecord` (works under PipeWire via
+`pipewire-pulse`); install it with:
+
+```bash
+sudo apt install pulseaudio-utils
+```
 
 ## Tests
 
