@@ -293,8 +293,7 @@ class _ChannelTabState extends State<ChannelTab> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Both stations must use the same width. '
-                        'Modulation & rate are announced in each burst header.',
+                        'Both stations must use the same bandwidth. ',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],

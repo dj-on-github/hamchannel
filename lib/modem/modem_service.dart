@@ -123,6 +123,21 @@ class ModemService extends ChangeNotifier {
   final Map<String, TransferEvent> transfers = {};
   String remoteListing = '';
 
+  /// Signal-quality capture (Signal Quality tab). Off by default; when
+  /// enabled, the receiver records the equalized payload constellation of
+  /// each received burst.
+  bool _sigQuality = false;
+  bool get signalQualityEnabled => _sigQuality;
+  set signalQualityEnabled(bool v) {
+    _sigQuality = v;
+    _rx?.captureConstellation = v;
+    notifyListeners();
+  }
+
+  /// Constellation of the last received transmission (null until one is
+  /// received with capture enabled).
+  ConstellationSnapshot? lastConstellation;
+
   /// Available audio devices (filled by [refreshAudioDevices]).
   List<AudioDeviceInfo> inputDevices = [];
   List<AudioDeviceInfo> outputDevices = [];
@@ -160,7 +175,8 @@ class ModemService extends ChangeNotifier {
       final p = params;
       _audio = _backendFactory(config);
       _tx = ModemTransmitter(p)..leaderSymbols = config.leaderSymbols;
-      _rx = ModemReceiver(p, onBurst: _onBurst, onStatus: _onRxStatus);
+      _rx = ModemReceiver(p, onBurst: _onBurst, onStatus: _onRxStatus)
+        ..captureConstellation = _sigQuality;
       _link = LinkManager(
         cfg: LinkConfig()
           ..myCall = config.myCall
@@ -375,6 +391,8 @@ class ModemService extends ChangeNotifier {
   // ------------------------------- RX path --------------------------------
 
   void _onBurst(ReceivedBurst b) {
+    final cc = _rx?.lastConstellation;
+    if (cc != null) lastConstellation = cc;
     _link?.onBurstReceived(b);
     notifyListeners();
   }

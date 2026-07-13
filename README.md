@@ -53,9 +53,13 @@ format, packet wire formats, ARQ procedures) is specified in
    transfer; add files to the shared folder.
 3. **Files** — files received from the other end, plus "request from
    remote": fetch the remote shared-folder listing or request by name.
-4. **Channel** — narrow/wide, subcarrier modulation, LDPC rate, callsigns,
+4. **Signal Quality** — constellation diagram of the equalized symbols from
+   the last received transmission, with SNR and EVM statistics (RMS, max,
+   standard deviation). Capture is off by default; enable it with the
+   switch at the top of the tab.
+5. **Channel** — narrow/wide, subcarrier modulation, LDPC rate, callsigns,
    audio input/output device selection, TX level, VOX leader length,
-   loopback test mode.
+   PCM capture, loopback test mode.
 
 ## Radio wiring (VOX keying)
 

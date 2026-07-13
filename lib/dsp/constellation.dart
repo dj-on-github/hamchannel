@@ -132,4 +132,29 @@ class Constellation {
       outBits[off + b] = tmp[b] >= 0 ? 0 : 1;
     }
   }
+
+  /// The ideal constellation point nearest to the received point (r, i) —
+  /// used for error-vector-magnitude measurement.
+  (double, double) nearestPoint(double r, double i) {
+    final bits = Uint8List(bitsPerSymbol);
+    hardDecide(r, i, bits, 0);
+    final re = Float64List(1), im = Float64List(1);
+    map(bits, 0, 1, re, im, 0);
+    return (re[0], im[0]);
+  }
+
+  /// Every ideal point of this constellation (for plotting).
+  List<(double, double)> allPoints() {
+    final out = <(double, double)>[];
+    final bits = Uint8List(bitsPerSymbol);
+    final re = Float64List(1), im = Float64List(1);
+    for (var v = 0; v < (1 << bitsPerSymbol); v++) {
+      for (var b = 0; b < bitsPerSymbol; b++) {
+        bits[b] = (v >> (bitsPerSymbol - 1 - b)) & 1;
+      }
+      map(bits, 0, 1, re, im, 0);
+      out.add((re[0], im[0]));
+    }
+    return out;
+  }
 }

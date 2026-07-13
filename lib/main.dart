@@ -15,6 +15,7 @@ import 'ui/channel_tab.dart';
 import 'ui/files_tab.dart';
 import 'ui/messages_tab.dart';
 import 'ui/send_files_tab.dart';
+import 'ui/signal_quality_tab.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -81,7 +82,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs =
-      TabController(length: 4, vsync: this);
+      TabController(length: 5, vsync: this);
 
   @override
   void dispose() {
@@ -101,6 +102,7 @@ class _HomeScreenState extends State<HomeScreen>
             Tab(icon: Icon(Icons.chat), text: 'Messages'),
             Tab(icon: Icon(Icons.upload_file), text: 'Send Files'),
             Tab(icon: Icon(Icons.folder_shared), text: 'Files'),
+            Tab(icon: Icon(Icons.scatter_plot), text: 'Signal Quality'),
             Tab(icon: Icon(Icons.tune), text: 'Channel'),
           ],
         ),
@@ -114,6 +116,7 @@ class _HomeScreenState extends State<HomeScreen>
                 MessagesTab(service: s),
                 SendFilesTab(service: s),
                 FilesTab(service: s),
+                SignalQualityTab(service: s),
                 ChannelTab(service: s),
               ],
             ),

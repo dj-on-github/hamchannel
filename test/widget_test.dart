@@ -18,6 +18,7 @@ void main() {
     expect(find.text('Messages'), findsOneWidget);
     expect(find.text('Send Files'), findsOneWidget);
     expect(find.text('Files'), findsOneWidget);
+    expect(find.text('Signal Quality'), findsOneWidget);
     expect(find.text('Channel'), findsOneWidget);
     expect(find.text('Start'), findsOneWidget);
     service.dispose();

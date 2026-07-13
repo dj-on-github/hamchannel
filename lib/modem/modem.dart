@@ -348,6 +348,36 @@ class ReceivedBurst {
   }
 }
 
+/// Equalized payload symbols and error-vector statistics captured from one
+/// received burst, for the Signal Quality display.
+class ConstellationSnapshot {
+  ConstellationSnapshot({
+    required this.xy,
+    required this.mod,
+    required this.snrDb,
+    required this.evmRmsPct,
+    required this.evmMaxPct,
+    required this.evmStdPct,
+    required this.totalPoints,
+    required this.srcCall,
+  }) : at = DateTime.now();
+
+  /// Interleaved (I, Q) pairs of the plotted points (capped subset).
+  final Float32List xy;
+  final SubcarrierModulation mod;
+  final double snrDb;
+
+  /// EVM in percent of the RMS constellation power (which is 1).
+  final double evmRmsPct;
+  final double evmMaxPct;
+  final double evmStdPct;
+
+  /// Total measured points (may exceed the plotted subset).
+  final int totalPoints;
+  final String srcCall;
+  final DateTime at;
+}
+
 enum RxState { searching, leader, collecting }
 
 class ModemReceiver {
@@ -422,6 +452,14 @@ class ModemReceiver {
   /// UI meter: recent RMS input level (0..1-ish).
   double rxRms = 0;
   double lastSnrDb = 0;
+
+  /// Signal-quality capture (off by default: zero cost when disabled).
+  bool captureConstellation = false;
+  ConstellationSnapshot? lastConstellation;
+  static const int _ccMaxPlotted = 12000;
+  final List<double> _ccXY = [];
+  int _ccCount = 0;
+  double _ccSum = 0, _ccSum2 = 0, _ccMax = 0;
 
   /// When true, incoming samples are discarded (used while transmitting).
   bool muted = false;
@@ -608,6 +646,11 @@ class ModemReceiver {
     _blockErrors = 0;
     _snrAcc = 0;
     _snrN = 0;
+    _ccXY.clear();
+    _ccCount = 0;
+    _ccSum = 0;
+    _ccSum2 = 0;
+    _ccMax = 0;
     state = RxState.collecting;
     onStatus?.call('sync');
   }
@@ -647,7 +690,8 @@ class ModemReceiver {
         final code = LdpcCode.payload(h.rate);
         final totalBits = h.blockCount * code.n;
         final bps = p.bitsPerOfdmSymbol(h.mod);
-        _processDataSymbol(yRe, yIm, h.mod, _payLlr, _payBitsGot);
+        _processDataSymbol(yRe, yIm, h.mod, _payLlr, _payBitsGot,
+            capture: captureConstellation);
         _payBitsGot = math.min(_payBitsGot + bps, totalBits);
         _decodeReadyBlocks(code);
         if (_payBitsGot >= totalBits) {
@@ -716,7 +760,8 @@ class ModemReceiver {
   /// Equalize one symbol, run pilot phase tracking, produce LLRs into
   /// [llrOut] starting at bit offset [bitsSoFar].
   void _processDataSymbol(Float64List yRe, Float64List yIm,
-      SubcarrierModulation mod, Float64List llrOut, int bitsSoFar) {
+      SubcarrierModulation mod, Float64List llrOut, int bitsSoFar,
+      {bool capture = false}) {
     final nA = p.activeCarriers;
     final pilotIdx = p.pilotIdx;
     final dataIdx = p.dataIdx;
@@ -821,6 +866,19 @@ class ModemReceiver {
       final h2 = hr * hr + hi * hi + 1e-15;
       final er = (yRe[i] * hr + yIm[i] * hi) / h2;
       final ei = (yIm[i] * hr - yRe[i] * hi) / h2;
+      if (capture) {
+        final (pr, pi) = c.nearestPoint(er, ei);
+        final dr = er - pr, di = ei - pi;
+        final e = math.sqrt(dr * dr + di * di);
+        _ccCount++;
+        _ccSum += e;
+        _ccSum2 += e * e;
+        if (e > _ccMax) _ccMax = e;
+        if (_ccXY.length < 2 * _ccMaxPlotted) {
+          _ccXY.add(er);
+          _ccXY.add(ei);
+        }
+      }
       // Per-carrier noise after equalization.
       final nvk = _noiseVar * _meanH2 / math.max(h2, _meanH2 * 1e-3);
       final bit0 = bitsSoFar + j * bps;
@@ -918,6 +976,20 @@ class ModemReceiver {
       return remain >= user ? b : Uint8List.sublistView(b, 0, remain);
     });
     _blocksDecoded = 0;
+    if (captureConstellation && _ccCount > 0) {
+      final mean = _ccSum / _ccCount;
+      final variance = math.max(_ccSum2 / _ccCount - mean * mean, 0.0);
+      lastConstellation = ConstellationSnapshot(
+        xy: Float32List.fromList(_ccXY),
+        mod: h.mod,
+        snrDb: lastSnrDb,
+        evmRmsPct: math.sqrt(_ccSum2 / _ccCount) * 100,
+        evmMaxPct: _ccMax * 100,
+        evmStdPct: math.sqrt(variance) * 100,
+        totalPoints: _ccCount,
+        srcCall: h.srcCall,
+      );
+    }
     onBurst(ReceivedBurst(
       header: h,
       blocks: blocks,

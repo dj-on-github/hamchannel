@@ -193,6 +193,53 @@ void main() {
     expect(got.first.payload, equals(payload));
   });
 
+  test('constellation capture measures a clean 16-QAM burst', () {
+    final p = ModemParams(width: ChannelWidth.narrow);
+    final tx = ModemTransmitter(p);
+    final wave = tx.buildBurst(
+      type: 0,
+      srcCall: 'W1AW',
+      dstCall: 'KD2XYZ',
+      burstId: 3,
+      mod: SubcarrierModulation.qam16,
+      rate: LdpcRate.threeQuarters,
+      payload: payload,
+    );
+    final rxWave = impair(wave, snrDb: 30, seed: 21);
+    final got = <ReceivedBurst>[];
+    final rx = ModemReceiver(p, onBurst: got.add)
+      ..captureConstellation = true;
+    const chunk = 1600;
+    for (var o = 0; o < rxWave.length; o += chunk) {
+      final e = math.min(o + chunk, rxWave.length);
+      rx.addSamples(Float64List.sublistView(rxWave, o, e));
+    }
+    expect(got, hasLength(1));
+    final cc = rx.lastConstellation;
+    expect(cc, isNotNull);
+    expect(cc!.mod, SubcarrierModulation.qam16);
+    expect(cc.totalPoints, greaterThan(500));
+    expect(cc.xy.length.isEven, isTrue);
+    expect(cc.xy.length ~/ 2, lessThanOrEqualTo(cc.totalPoints));
+    // Clean channel: small errors, sane ordering of the statistics.
+    expect(cc.evmRmsPct, lessThan(30));
+    expect(cc.evmMaxPct, greaterThanOrEqualTo(cc.evmRmsPct));
+    expect(cc.evmStdPct, lessThanOrEqualTo(cc.evmRmsPct));
+    expect(cc.snrDb, greaterThan(10));
+  });
+
+  test('capture disabled leaves no snapshot', () {
+    final got = runOnce(
+      width: ChannelWidth.narrow,
+      mod: SubcarrierModulation.qpsk,
+      rate: LdpcRate.half,
+      payload: payload,
+      snrDb: 30,
+    );
+    expect(got, hasLength(1));
+    // runOnce uses a receiver with capture off (the default).
+  });
+
   test('empty payload (header-only burst) round-trips', () {
     final got = runOnce(
       width: ChannelWidth.narrow,
