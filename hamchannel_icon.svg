@@ -1,54 +1,40 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#243B53"/>
-      <stop offset="1" stop-color="#152738"/>
-    </linearGradient>
-    <linearGradient id="hamg" x1="0" y1="0" x2="0.3" y2="1">
-      <stop offset="0" stop-color="#F0839C"/>
-      <stop offset="1" stop-color="#DE5F7E"/>
-    </linearGradient>
-  </defs>
-
-  <!-- BACKDROP (rounded macOS-style tile) -->
-  <rect id="tile" x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
-
-  <!-- subtle radio-wave rings behind the ham -->
-  <g stroke="#3E5A75" stroke-width="10" fill="none" opacity="0.55">
-    <circle cx="512" cy="450" r="285"/>
-    <circle cx="512" cy="450" r="345" opacity="0.5"/>
-  </g>
-
-  <!-- HAM -->
-  <g transform="translate(-16 0) rotate(-18 512 450)">
-    <!-- body -->
-    <ellipse cx="490" cy="450" rx="240" ry="178" fill="url(#hamg)"
-             stroke="#4A2430" stroke-width="16"/>
-    <!-- cut face -->
-    <ellipse cx="668" cy="450" rx="92" ry="142" fill="#F8BCC9"
-             stroke="#4A2430" stroke-width="13"/>
-    <!-- inner ring on the cut face -->
-    <ellipse cx="668" cy="450" rx="40" ry="66" fill="#E8718D" opacity="0.6"/>
-    <!-- bone shaft -->
-    <rect x="742" y="424" width="96" height="52" rx="26" fill="#FFF6E8"
-          stroke="#4A2430" stroke-width="12"/>
-    <!-- bone knobs -->
-    <circle cx="846" cy="428" r="34" fill="#FFF6E8" stroke="#4A2430" stroke-width="12"/>
-    <circle cx="846" cy="472" r="34" fill="#FFF6E8" stroke="#4A2430" stroke-width="12"/>
-    <!-- glaze highlight -->
-    <ellipse cx="380" cy="352" rx="120" ry="54" fill="#FFFFFF" opacity="0.30"
-             transform="rotate(-8 380 352)"/>
-    <ellipse cx="298" cy="430" rx="34" ry="20" fill="#FFFFFF" opacity="0.18"/>
-  </g>
-
-  <!-- BIDIRECTIONAL ARROW -->
-  <path d="M 252 772
-           L 374 678 L 374 730
-           L 650 730 L 650 678
-           L 772 772
-           L 650 866 L 650 814
-           L 374 814 L 374 866 Z"
-        fill="#3ECF8E" stroke="#173D30" stroke-width="14"
-        stroke-linejoin="round"/>
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg width="100%" height="100%" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xml:space="preserve" xmlns:serif="http://www.serif.com/" style="fill-rule:evenodd;clip-rule:evenodd;">
+    <path id="tile" d="M924,286L924,738C924,840.656 840.656,924 738,924L286,924C183.344,924 100,840.656 100,738L100,286C100,183.344 183.344,100 286,100L738,100C840.656,100 924,183.344 924,286Z" style="fill:url(#_Linear1);"/>
+    <g opacity="0.55">
+        <circle cx="512" cy="450" r="285" style="fill:none;stroke:rgb(62,90,117);stroke-width:10px;"/>
+        <circle cx="512" cy="450" r="345" style="fill:none;stroke:rgb(62,90,117);stroke-opacity:0.5;stroke-width:10px;"/>
+    </g>
+    <g transform="matrix(0.951057,-0.309017,0.309017,0.951057,-129.999,180.241)">
+        <g transform="matrix(1,0,0,1,17.4272,3.61021)">
+            <ellipse cx="490" cy="450" rx="240" ry="178" style="fill:url(#_Linear2);stroke:rgb(74,36,48);stroke-width:16px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-10.8936,5.10566)">
+            <ellipse cx="668" cy="450" rx="92" ry="142" style="fill:rgb(248,188,201);stroke:rgb(74,36,48);stroke-width:13px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-10.8936,5.10566)">
+            <ellipse cx="668" cy="450" rx="40" ry="66" style="fill:rgb(232,113,141);fill-opacity:0.6;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-82.1644,0.840657)">
+            <path d="M838,450C838,464.35 826.35,476 812,476L768,476C753.65,476 742,464.35 742,450C742,435.65 753.65,424 768,424L812,424C826.35,424 838,435.65 838,450Z" style="fill:rgb(255,246,232);stroke:rgb(74,36,48);stroke-width:12px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-82.1644,0.840657)">
+            <circle cx="846" cy="428" r="34" style="fill:rgb(255,246,232);stroke:rgb(74,36,48);stroke-width:12px;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,-82.1644,0.840657)">
+            <circle cx="846" cy="472" r="34" style="fill:rgb(255,246,232);stroke:rgb(74,36,48);stroke-width:12px;"/>
+        </g>
+        <g transform="matrix(0.990268,-0.139173,0.139173,0.990268,-27.8636,59.9216)">
+            <ellipse cx="380" cy="352" rx="120" ry="54" style="fill:white;fill-opacity:0.3;"/>
+        </g>
+        <g transform="matrix(1,0,0,1,17.4272,3.61021)">
+            <ellipse cx="298" cy="430" rx="34" ry="20" style="fill:white;fill-opacity:0.18;"/>
+        </g>
+    </g>
+    <path d="M252,772L374,678L374,730L650,730L650,678L772,772L650,866L650,814L374,814L374,866L252,772Z" style="fill:rgb(62,207,142);fill-rule:nonzero;stroke:rgb(23,61,48);stroke-width:14px;stroke-linejoin:round;"/>
+    <defs>
+        <linearGradient id="_Linear1" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(5.04554e-14,824,-824,5.04554e-14,100,100)"><stop offset="0" style="stop-color:rgb(36,59,83);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(21,39,56);stop-opacity:1"/></linearGradient>
+        <linearGradient id="_Linear2" x1="0" y1="0" x2="1" y2="0" gradientUnits="userSpaceOnUse" gradientTransform="matrix(144,356,-356,144,250,272)"><stop offset="0" style="stop-color:rgb(240,131,156);stop-opacity:1"/><stop offset="1" style="stop-color:rgb(222,95,126);stop-opacity:1"/></linearGradient>
+    </defs>
 </svg>
