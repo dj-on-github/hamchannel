@@ -145,7 +145,19 @@ tools/hc_gen --call W1AW --dest KD2XYZ -m "test message" -o test.f64
 tools/hc_gen --mod 16-qam --ldpc 3/4 -m "hi" | tools/hc_info
 ```
 
-Both tools build from the same Makefile in `tools/src` (committed as
+**hc_ruin** applies channel defects to a capture, in three stages:
+Rician/Rayleigh fading (`--fade-rate`, `--fade-k`), additive Gaussian noise
+(`--snr` or `--noise`), and sampling phase noise via 16× oversampled
+sample-position jitter (`--pn-sigma` in 1/16-sample steps, `--pn-corr`).
+It reads a file or stdin and writes `-o <file>` or stdout, so the three
+tools chain into a full offline test bench:
+
+```bash
+tools/hc_gen -m "test" | tools/hc_ruin --fade-rate 2 --fade-k 4 \
+    --snr 10 --pn-sigma 3 | tools/hc_info
+```
+
+All tools build from the same Makefile in `tools/src` (committed as
 `hc_info.mk`; rename to `Makefile` or run `make -f hc_info.mk`).
 
 ## Quick start without a radio
