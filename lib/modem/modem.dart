@@ -326,9 +326,14 @@ class ReceivedBurst {
     required this.blocks,
     required this.snrDb,
     required this.blockErrors,
+    this.startSample = 0,
   });
 
   final BurstHeader header;
+
+  /// Absolute sample index (in the receiver's input stream) of the burst's
+  /// channel-estimation symbol.
+  final int startSample;
 
   /// Per-block user data (CRC-verified); null where decode failed.
   final List<Uint8List?> blocks;
@@ -1038,6 +1043,7 @@ class ModemReceiver {
       blocks: blocks,
       snrDb: lastSnrDb,
       blockErrors: _blockErrors,
+      startSample: _chanestAbs,
     ));
   }
 }

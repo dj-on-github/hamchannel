@@ -125,6 +125,29 @@ with `sox -t f64 -r 48000 -c 1 capture.f64 -d`.
 feeds a chosen PCM file into the receiver exactly as if the samples had
 arrived from the audio interface — sync, decode, ARQ responses and all.
 
+**hc_info** (`tools/`) is a command-line inspector for capture files: it
+demodulates every burst with the same DSP/LDPC code as the app and prints
+the burst headers (callsigns, modulation, code rate, flags, block counts)
+plus the type and fields of every packet inside. Build it with `make` in
+`tools/src` (needs dart/flutter on PATH, or pass `DART=`/`FLUTTER=`), then:
+
+```bash
+tools/hc_info capture.f64            # auto-detects narrow/wide
+tools/hc_info -v --width narrow capture.f64
+```
+
+**hc_gen** (`tools/`) is its counterpart: it generates a complete message
+burst as PCM using the app's own modulator — handy for producing known-good
+test vectors for demod work. Without `-o` the samples go to stdout:
+
+```bash
+tools/hc_gen --call W1AW --dest KD2XYZ -m "test message" -o test.f64
+tools/hc_gen --mod 16-qam --ldpc 3/4 -m "hi" | tools/hc_info /dev/stdin
+```
+
+Both tools build from the same Makefile in `tools/src` (committed as
+`hc_info.mk`; rename to `Makefile` or run `make -f hc_info.mk`).
+
 ## Quick start without a radio
 
 Channel tab → enable **Loopback test mode** → Start. Anything you transmit
