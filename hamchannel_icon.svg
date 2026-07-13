@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#243B53"/>
+      <stop offset="1" stop-color="#152738"/>
+    </linearGradient>
+    <linearGradient id="hamg" x1="0" y1="0" x2="0.3" y2="1">
+      <stop offset="0" stop-color="#F0839C"/>
+      <stop offset="1" stop-color="#DE5F7E"/>
+    </linearGradient>
+  </defs>
+
+  <!-- BACKDROP (rounded macOS-style tile) -->
+  <rect id="tile" x="100" y="100" width="824" height="824" rx="186" fill="url(#bg)"/>
+
+  <!-- subtle radio-wave rings behind the ham -->
+  <g stroke="#3E5A75" stroke-width="10" fill="none" opacity="0.55">
+    <circle cx="512" cy="450" r="285"/>
+    <circle cx="512" cy="450" r="345" opacity="0.5"/>
+  </g>
+
+  <!-- HAM -->
+  <g transform="translate(-16 0) rotate(-18 512 450)">
+    <!-- body -->
+    <ellipse cx="490" cy="450" rx="240" ry="178" fill="url(#hamg)"
+             stroke="#4A2430" stroke-width="16"/>
+    <!-- cut face -->
+    <ellipse cx="668" cy="450" rx="92" ry="142" fill="#F8BCC9"
+             stroke="#4A2430" stroke-width="13"/>
+    <!-- inner ring on the cut face -->
+    <ellipse cx="668" cy="450" rx="40" ry="66" fill="#E8718D" opacity="0.6"/>
+    <!-- bone shaft -->
+    <rect x="742" y="424" width="96" height="52" rx="26" fill="#FFF6E8"
+          stroke="#4A2430" stroke-width="12"/>
+    <!-- bone knobs -->
+    <circle cx="846" cy="428" r="34" fill="#FFF6E8" stroke="#4A2430" stroke-width="12"/>
+    <circle cx="846" cy="472" r="34" fill="#FFF6E8" stroke="#4A2430" stroke-width="12"/>
+    <!-- glaze highlight -->
+    <ellipse cx="380" cy="352" rx="120" ry="54" fill="#FFFFFF" opacity="0.30"
+             transform="rotate(-8 380 352)"/>
+    <ellipse cx="298" cy="430" rx="34" ry="20" fill="#FFFFFF" opacity="0.18"/>
+  </g>
+
+  <!-- BIDIRECTIONAL ARROW -->
+  <path d="M 252 772
+           L 374 678 L 374 730
+           L 650 730 L 650 678
+           L 772 772
+           L 650 866 L 650 814
+           L 374 814 L 374 866 Z"
+        fill="#3ECF8E" stroke="#173D30" stroke-width="14"
+        stroke-linejoin="round"/>
+</svg>
