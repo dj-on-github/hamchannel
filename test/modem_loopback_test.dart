@@ -226,6 +226,43 @@ void main() {
     expect(cc.evmMaxPct, greaterThanOrEqualTo(cc.evmRmsPct));
     expect(cc.evmStdPct, lessThanOrEqualTo(cc.evmRmsPct));
     expect(cc.snrDb, greaterThan(10));
+    // FEC / CRC statistics.
+    expect(cc.blocksOk, got.first.blocks.length);
+    expect(cc.blocksCrcFailed, 0);
+    expect(cc.blocksUncorrectable, 0);
+    expect(cc.allBlocksOk, isTrue);
+    expect(cc.fecCodedBits, cc.blocksOk * 2048);
+    expect(cc.fecCorrectedBits, lessThan(cc.fecCodedBits ~/ 10),
+        reason: 'clean channel should need few corrections');
+    expect(cc.ber, lessThan(0.1));
+  });
+
+  test('BER rises but blocks still decode near threshold', () {
+    final p = ModemParams(width: ChannelWidth.narrow);
+    final tx = ModemTransmitter(p);
+    final wave = tx.buildBurst(
+      type: 0,
+      srcCall: 'W1AW',
+      dstCall: 'KD2XYZ',
+      burstId: 4,
+      mod: SubcarrierModulation.qpsk,
+      rate: LdpcRate.half,
+      payload: payload,
+    );
+    final rxWave = impair(wave, snrDb: 6, seed: 33);
+    final got = <ReceivedBurst>[];
+    final rx = ModemReceiver(p, onBurst: got.add)
+      ..captureConstellation = true;
+    const chunk = 1600;
+    for (var o = 0; o < rxWave.length; o += chunk) {
+      final e = math.min(o + chunk, rxWave.length);
+      rx.addSamples(Float64List.sublistView(rxWave, o, e));
+    }
+    expect(got, hasLength(1));
+    final cc = rx.lastConstellation!;
+    expect(cc.allBlocksOk, isTrue);
+    expect(cc.fecCorrectedBits, greaterThan(0),
+        reason: 'a noisy channel must show corrected bits');
   });
 
   test('capture disabled leaves no snapshot', () {

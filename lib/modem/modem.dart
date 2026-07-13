@@ -360,6 +360,11 @@ class ConstellationSnapshot {
     required this.evmStdPct,
     required this.totalPoints,
     required this.srcCall,
+    required this.fecCorrectedBits,
+    required this.fecCodedBits,
+    required this.blocksOk,
+    required this.blocksCrcFailed,
+    required this.blocksUncorrectable,
   }) : at = DateTime.now();
 
   /// Interleaved (I, Q) pairs of the plotted points (capped subset).
@@ -376,6 +381,21 @@ class ConstellationSnapshot {
   final int totalPoints;
   final String srcCall;
   final DateTime at;
+
+  /// Raw channel bit errors corrected by the LDPC decoder, over the coded
+  /// bits of the successfully decoded payload blocks.
+  final int fecCorrectedBits;
+  final int fecCodedBits;
+
+  /// Pre-FEC channel bit-error rate (over successfully decoded blocks).
+  double get ber => fecCodedBits == 0 ? 0 : fecCorrectedBits / fecCodedBits;
+
+  /// Per-block CRC outcome counts for the burst.
+  final int blocksOk;
+  final int blocksCrcFailed; // LDPC converged but CRC-32 mismatched
+  final int blocksUncorrectable; // LDPC failed to converge
+
+  bool get allBlocksOk => blocksCrcFailed == 0 && blocksUncorrectable == 0;
 }
 
 enum RxState { searching, leader, collecting }
@@ -460,6 +480,13 @@ class ModemReceiver {
   final List<double> _ccXY = [];
   int _ccCount = 0;
   double _ccSum = 0, _ccSum2 = 0, _ccMax = 0;
+
+  // Per-burst FEC / CRC statistics (always collected — cheap).
+  int _fecCorrected = 0;
+  int _fecCoded = 0;
+  int _blkOk = 0;
+  int _blkCrcFail = 0;
+  int _blkUncorrectable = 0;
 
   /// When true, incoming samples are discarded (used while transmitting).
   bool muted = false;
@@ -651,6 +678,11 @@ class ModemReceiver {
     _ccSum = 0;
     _ccSum2 = 0;
     _ccMax = 0;
+    _fecCorrected = 0;
+    _fecCoded = 0;
+    _blkOk = 0;
+    _blkCrcFail = 0;
+    _blkUncorrectable = 0;
     state = RxState.collecting;
     onStatus?.call('sync');
   }
@@ -946,16 +978,22 @@ class ModemReceiver {
       final llr = Float64List(code.n);
       llr.setRange(0, code.n, _payLlr, blk * code.n);
       final de = _payIl.deinterleaveLlr(llr);
-      final info = code.decode(de);
+      final stats = LdpcDecodeStats();
+      final info = code.decode(de, stats: stats);
       if (info != null) {
         final want = ByteData.sublistView(info).getUint32(code.infoBytes - 4);
         if (crc32(info, 0, code.infoBytes - 4) == want) {
           _blocks[blk] = Uint8List.sublistView(info, 0, code.infoBytes - 4);
+          _blkOk++;
+          _fecCoded += code.n;
+          _fecCorrected += stats.correctedBits;
         } else {
           _blockErrors++;
+          _blkCrcFail++;
         }
       } else {
         _blockErrors++;
+        _blkUncorrectable++;
       }
       _blocksDecoded++;
     }
@@ -988,6 +1026,11 @@ class ModemReceiver {
         evmStdPct: math.sqrt(variance) * 100,
         totalPoints: _ccCount,
         srcCall: h.srcCall,
+        fecCorrectedBits: _fecCorrected,
+        fecCodedBits: _fecCoded,
+        blocksOk: _blkOk,
+        blocksCrcFailed: _blkCrcFail,
+        blocksUncorrectable: _blkUncorrectable,
       );
     }
     onBurst(ReceivedBurst(

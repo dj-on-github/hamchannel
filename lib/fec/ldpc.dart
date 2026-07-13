@@ -139,8 +139,12 @@ class LdpcCode {
 
   /// Decode LLRs (positive = bit 0) into info bytes, or null on failure.
   ///
-  /// Normalized min-sum, flooding schedule.
-  Uint8List? decode(Float64List llr, {int maxIter = 40, double alpha = 0.8}) {
+  /// Normalized min-sum with a layered (row-serial) schedule. When [stats]
+  /// is provided and decoding succeeds, it is filled with the number of
+  /// channel hard-decision errors the decoder corrected (input LLR sign vs
+  /// final codeword) and the iteration count.
+  Uint8List? decode(Float64List llr,
+      {int maxIter = 40, double alpha = 0.8, LdpcDecodeStats? stats}) {
     assert(llr.length == n);
     final ec = _edgeCount;
     final r = Float64List(ec); // check -> var messages
@@ -160,7 +164,17 @@ class LdpcCode {
         }
         if (s != 0) ok = false;
       }
-      if (ok) return _packInfo(hard);
+      if (ok) {
+        if (stats != null) {
+          var corrected = 0;
+          for (var v = 0; v < n; v++) {
+            if ((llr[v] < 0 ? 1 : 0) != hard[v]) corrected++;
+          }
+          stats.correctedBits = corrected;
+          stats.iterations = iter;
+        }
+        return _packInfo(hard);
+      }
       if (iter == maxIter) break;
 
       // Check-node update using q = post - r (variable-to-check).
@@ -205,4 +219,12 @@ class LdpcCode {
 
   /// Convenience: encode bytes and return coded bits.
   Uint8List encode(Uint8List info) => encodeBits(info);
+}
+
+/// Filled by [LdpcCode.decode] on success.
+class LdpcDecodeStats {
+  /// Coded bits whose channel hard decision the decoder flipped — i.e. the
+  /// raw channel bit errors within this (successfully decoded) block.
+  int correctedBits = 0;
+  int iterations = 0;
 }

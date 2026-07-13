@@ -1,7 +1,7 @@
 === flutter --version ===
 Flutter 3.44.6 • channel stable • https://github.com/flutter/flutter.git
-Framework • revision ee80f08bbf (4 days ago) • 2026-07-08 15:02:06 -0700
-Engine • hash d3a3293399556a85388faf8c6f0723a7a5597aa8 (revision 83675ed276) (12 days ago) • 2026-06-30 16:59:03.000Z
+Framework • revision ee80f08bbf (5 days ago) • 2026-07-08 15:02:06 -0700
+Engine • hash d3a3293399556a85388faf8c6f0723a7a5597aa8 (revision 83675ed276) (13 days ago) • 2026-06-30 16:59:03.000Z
 Tools • Dart 3.12.2 • DevTools 2.57.0
 
 === pub get ===
@@ -29,37 +29,41 @@ Try `flutter pub outdated` for more information.
 
 === analyze ===
 Analyzing hamchannel...                                         
-No issues found! (ran in 1.5s)
+No issues found! (ran in 2.6s)
 
 === test ===
 00:00 +0: loading /Users/dj/src/hamchannel/test/fft_test.dart
-00:00 +0: /Users/dj/src/hamchannel/test/protocol_test.dart: text message is delivered and acked
-00:00 +1: /Users/dj/src/hamchannel/test/protocol_test.dart: text message is delivered and acked
-00:00 +2: /Users/dj/src/hamchannel/test/protocol_test.dart: text message is delivered and acked
-00:00 +3: /Users/dj/src/hamchannel/test/protocol_test.dart: text message is delivered and acked
-00:00 +4: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
-00:00 +5: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer recovers from lost blocks via NAK
-00:01 +6: /Users/dj/src/hamchannel/test/protocol_test.dart: remote file request round-trip
-00:01 +7: /Users/dj/src/hamchannel/test/ldpc_test.dart: CRC32 known vector
-00:01 +8: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +9: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +10: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +11: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +12: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +13: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +14: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +15: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +16: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +17: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +18: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +19: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +20: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +21: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
-00:01 +22: /Users/dj/src/hamchannel/test/protocol_test.dart: file listing request
+00:00 +0: /Users/dj/src/hamchannel/test/fft_test.dart: FFT of a pure tone concentrates energy in one bin
+00:00 +1: /Users/dj/src/hamchannel/test/pcm_file_test.dart: TX capture to f64le PCM file replays into another receiver
+00:00 +2: /Users/dj/src/hamchannel/test/pcm_file_test.dart: TX capture to f64le PCM file replays into another receiver
+00:00 +3: /Users/dj/src/hamchannel/test/pcm_file_test.dart: TX capture to f64le PCM file replays into another receiver
+00:00 +4: /Users/dj/src/hamchannel/test/protocol_test.dart: text message is delivered and acked
+00:00 +5: /Users/dj/src/hamchannel/test/protocol_test.dart: text message is delivered and acked
+00:00 +6: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
+00:00 +7: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
+00:00 +8: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
+00:00 +9: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
+00:00 +10: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
+00:00 +11: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
+00:00 +12: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +13: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +14: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +15: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +16: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +17: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +18: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +19: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +20: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +21: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
+00:01 +22: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
 00:01 +23: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
 00:01 +24: /Users/dj/src/hamchannel/test/widget_test.dart: app builds with all four tabs
 00:01 +25: /Users/dj/src/hamchannel/test/end_to_end_test.dart: message travels over the simulated audio channel and is acked
-00:02 +26: /Users/dj/src/hamchannel/test/end_to_end_test.dart: file transfer end-to-end through the audio channel
-00:03 +27: All tests passed!
+00:01 +26: /Users/dj/src/hamchannel/test/end_to_end_test.dart: message travels over the simulated audio channel and is acked
+00:01 +27: /Users/dj/src/hamchannel/test/end_to_end_test.dart: message travels over the simulated audio channel and is acked
+00:01 +28: /Users/dj/src/hamchannel/test/end_to_end_test.dart: message travels over the simulated audio channel and is acked
+00:02 +29: /Users/dj/src/hamchannel/test/end_to_end_test.dart: message travels over the simulated audio channel and is acked
+00:02 +30: /Users/dj/src/hamchannel/test/end_to_end_test.dart: file transfer end-to-end through the audio channel
+00:02 +31: All tests passed!
 
 === exit status: 0 ===

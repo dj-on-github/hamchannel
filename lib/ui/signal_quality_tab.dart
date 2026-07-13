@@ -103,12 +103,35 @@ class SignalQualityTab extends StatelessWidget {
                                       '${snap.evmMaxPct.toStringAsFixed(2)} %'),
                                   _row('EVM (std dev)',
                                       '${snap.evmStdPct.toStringAsFixed(2)} %'),
+                                  const Divider(),
+                                  _row('Pre-FEC BER', _fmtBer(snap)),
+                                  _row('Bits corrected',
+                                      '${snap.fecCorrectedBits} of ${snap.fecCodedBits} coded'),
+                                  _row(
+                                    'CRC status',
+                                    snap.blocksOk +
+                                                snap.blocksCrcFailed +
+                                                snap.blocksUncorrectable ==
+                                            0
+                                        ? 'no payload blocks'
+                                        : snap.allBlocksOk
+                                            ? 'all ${snap.blocksOk} blocks OK'
+                                            : '${snap.blocksOk} OK · '
+                                                '${snap.blocksCrcFailed} CRC fail · '
+                                                '${snap.blocksUncorrectable} uncorrectable',
+                                    color: snap.allBlocksOk
+                                        ? Colors.lightGreen
+                                        : Colors.redAccent,
+                                  ),
                                   const SizedBox(height: 12),
                                   Text(
                                     'EVM is the error-vector magnitude of '
                                     'each equalized symbol relative to its '
                                     'nearest constellation point, in percent '
-                                    'of the RMS constellation power.',
+                                    'of the RMS constellation power. '
+                                    'Pre-FEC BER is the fraction of coded '
+                                    'bits the LDPC decoder corrected, over '
+                                    'the blocks it decoded successfully.',
                                     style: Theme.of(context)
                                         .textTheme
                                         .bodySmall,
@@ -127,15 +150,25 @@ class SignalQualityTab extends StatelessWidget {
     );
   }
 
-  Widget _row(String label, String value) => Padding(
+  Widget _row(String label, String value, {Color? color}) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(
           children: [
             SizedBox(width: 170, child: Text(label)),
-            Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+            Expanded(
+              child: Text(value,
+                  style:
+                      TextStyle(fontWeight: FontWeight.bold, color: color)),
+            ),
           ],
         ),
       );
+
+  static String _fmtBer(ConstellationSnapshot s) {
+    if (s.fecCodedBits == 0) return 'n/a (no decoded blocks)';
+    if (s.fecCorrectedBits == 0) return '0 (no bit errors)';
+    return s.ber.toStringAsExponential(2);
+  }
 
   static String _fmtTime(DateTime t) =>
       '${t.hour.toString().padLeft(2, '0')}:'
