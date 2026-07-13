@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../audio/real_audio.dart';
@@ -224,6 +225,34 @@ class _ChannelTabState extends State<ChannelTab> {
                     ),
                   ]),
                   const SizedBox(height: 8),
+                  Row(children: [
+                    OutlinedButton.icon(
+                      onPressed: s.pcmWriting ? null : () => _pickPcmOut(s),
+                      icon: const Icon(Icons.fiber_manual_record),
+                      label: const Text('Write PCM…'),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed:
+                          s.pcmWriting ? () => s.stopPcmWrite() : null,
+                      icon: const Icon(Icons.stop_circle_outlined),
+                      label: const Text('Close'),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        s.pcmWriting
+                            ? 'Capturing transmissions to ${s.pcmWritePath}'
+                            : 'Capture transmitted audio to a raw PCM file '
+                                '(mono 48 kHz, float64 little-endian). Only '
+                                'transmissions are written; idle time is not.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 2,
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 8),
                   SwitchListTile(
                     title: const Text('Loopback test mode (no sound card)'),
                     subtitle: const Text(
@@ -278,6 +307,18 @@ class _ChannelTabState extends State<ChannelTab> {
         );
       },
     );
+  }
+
+  Future<void> _pickPcmOut(ModemService s) async {
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'Write transmitted PCM to…',
+      fileName: 'hamchannel_tx.f64',
+      initialDirectory: s.lastDir,
+    );
+    if (path != null) {
+      s.rememberDir(path);
+      await s.startPcmWrite(path);
+    }
   }
 
   /// Device pulldown: null value = system default. Keeps a stale saved

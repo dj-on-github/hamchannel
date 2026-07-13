@@ -30,6 +30,10 @@ class AppConfig {
   String inputDeviceLabel = '';
   String? outputDeviceName;
 
+  /// Last directory used in a file open/save dialog; file browsers reopen
+  /// here on the next use, including across app restarts.
+  String? lastDir;
+
   Map<String, Object?> toJson() => {
         'width': width.name,
         'modulation': modulation.name,
@@ -44,6 +48,7 @@ class AppConfig {
         'inputDeviceId': inputDeviceId,
         'inputDeviceLabel': inputDeviceLabel,
         'outputDeviceName': outputDeviceName,
+        'lastDir': lastDir,
       };
 
   static AppConfig fromJson(Map<String, Object?> j) {
@@ -66,6 +71,7 @@ class AppConfig {
     c.inputDeviceId = j['inputDeviceId'] as String?;
     c.inputDeviceLabel = (j['inputDeviceLabel'] as String?) ?? '';
     c.outputDeviceName = j['outputDeviceName'] as String?;
+    c.lastDir = j['lastDir'] as String?;
     return c;
   }
 }
@@ -197,6 +203,22 @@ class ModemService extends ChangeNotifier {
   /// changed on disk).
   void refresh() => notifyListeners();
 
+  /// Directory to open file browsers in (last one used, if it still exists).
+  String? get lastDir {
+    final d = config.lastDir;
+    if (d == null || d.isEmpty) return null;
+    return Directory(d).existsSync() ? d : null;
+  }
+
+  /// Remember the directory containing [filePath] for future file dialogs
+  /// and persist it with the rest of the configuration.
+  void rememberDir(String filePath) {
+    try {
+      config.lastDir = File(filePath).parent.path;
+      onPersistConfig?.call();
+    } catch (_) {}
+  }
+
   Future<void> stop() async {
     running = false;
     await _rxSub?.cancel();
@@ -225,6 +247,95 @@ class ModemService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // --------------------------- PCM file capture ---------------------------
+  //
+  // Offline-analysis support: transmitted bursts can be appended to a raw
+  // PCM file (mono, 48 kHz, 64-bit IEEE 754 little-endian floats). Only
+  // transmissions are written; nothing is appended while the transmitter
+  // is idle. A PCM file can also be played back into the receiver as if it
+  // had arrived from the audio interface.
+
+  IOSink? _pcmSink;
+  String pcmWritePath = '';
+  bool get pcmWriting => _pcmSink != null;
+  bool pcmReading = false;
+
+  Future<void> startPcmWrite(String path) async {
+    await stopPcmWrite();
+    _pcmSink = File(path).openWrite();
+    pcmWritePath = path;
+    _addLog('writing TX audio to $path (f64le, 48 kHz mono)');
+    notifyListeners();
+  }
+
+  Future<void> stopPcmWrite() async {
+    final sink = _pcmSink;
+    _pcmSink = null;
+    if (sink != null) {
+      await sink.flush();
+      await sink.close();
+      _addLog('closed PCM file $pcmWritePath');
+    }
+    pcmWritePath = '';
+    notifyListeners();
+  }
+
+  void _pcmCapture(Float64List wave) {
+    final sink = _pcmSink;
+    if (sink == null) return;
+    final bytes = Uint8List(wave.length * 8);
+    final bd = ByteData.sublistView(bytes);
+    for (var i = 0; i < wave.length; i++) {
+      bd.setFloat64(i * 8, wave[i], Endian.little);
+    }
+    sink.add(bytes);
+  }
+
+  /// Read a raw f64le PCM file and feed it to the receiver exactly as if
+  /// the samples had arrived from the audio interface.
+  Future<void> readPcmFile(String path) async {
+    final rx = _rx;
+    if (rx == null) {
+      lastError = 'start the modem before reading a PCM file';
+      notifyListeners();
+      return;
+    }
+    if (pcmReading) return;
+    pcmReading = true;
+    notifyListeners();
+    try {
+      final bytes = await File(path).readAsBytes();
+      final n = bytes.length ~/ 8;
+      final bd = ByteData.sublistView(bytes);
+      _addLog('reading PCM file $path '
+          '(${(n / ModemParams.sampleRate).toStringAsFixed(1)} s of audio)');
+      const chunk = 4800; // 100 ms
+      final buf = Float64List(chunk);
+      var filled = 0;
+      for (var i = 0; i < n; i++) {
+        buf[filled++] = bd.getFloat64(i * 8, Endian.little);
+        if (filled == chunk) {
+          rx.addSamples(buf);
+          filled = 0;
+          // Yield so the UI and link timers keep running.
+          await Future<void>.delayed(Duration.zero);
+        }
+      }
+      if (filled > 0) {
+        rx.addSamples(Float64List.sublistView(buf, 0, filled));
+      }
+      // Trailing silence flushes any burst that ends exactly at EOF.
+      rx.addSamples(Float64List(ModemParams.symbolLen * 2));
+      _addLog('finished PCM file $path');
+    } catch (e) {
+      lastError = 'PCM read failed: $e';
+      _addLog(lastError);
+    } finally {
+      pcmReading = false;
+      notifyListeners();
+    }
+  }
+
   // ------------------------------- TX path --------------------------------
 
   int _burstId = 1;
@@ -245,6 +356,7 @@ class ModemService extends ChangeNotifier {
       level: config.txLevel,
       flags: flags,
     );
+    _pcmCapture(wave);
     transmitting = true;
     _rx?.muted = true;
     statusLine =
@@ -331,6 +443,7 @@ class ModemService extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
+    stopPcmWrite();
     stop();
     super.dispose();
   }

@@ -11,6 +11,10 @@ for reliable file delivery.
 > digital modes), but transmitting requires a valid amateur licence and a
 > band/mode where data emission is permitted.
 
+The complete on-air protocol (OFDM numerology, LDPC construction, burst
+format, packet wire formats, ARQ procedures) is specified in
+[PROTOCOL.md](PROTOCOL.md).
+
 ## Physical layer
 
 | Property | Narrow | Wide |
@@ -102,6 +106,20 @@ sudo apt install pulseaudio-utils libasound2-dev
 * the ARQ protocol (message ack, file transfer, NAK recovery, file
   request, listing) over a simulated block-loss channel,
 * a complete two-station end-to-end exchange over the simulated audio path.
+
+## Offline analysis (PCM files)
+
+For demod testing and offline analysis, transmissions can be captured to a
+raw PCM file: **Channel tab → Write PCM…** picks the file, **Close** ends
+the capture. The format is mono, 48 kHz, 64-bit IEEE 754 little-endian
+floats (`.f64`); only transmitted bursts are written — idle time adds
+nothing, so a capture of N bursts is simply the N waveforms back to back.
+Load one in Python with `numpy.fromfile(path, dtype='<f8')`, or play it
+with `sox -t f64 -r 48000 -c 1 capture.f64 -d`.
+
+**Read PCM** (next to Start/Stop in the status bar) does the reverse: it
+feeds a chosen PCM file into the receiver exactly as if the samples had
+arrived from the audio interface — sync, decode, ARQ responses and all.
 
 ## Quick start without a radio
 

@@ -17,8 +17,11 @@ class SendFilesTab extends StatelessWidget {
       allowMultiple: true,
       withData: true,
       dialogTitle: 'Choose files to send over the radio',
+      initialDirectory: service.lastDir,
     );
     if (result == null) return;
+    final firstPath = result.files.first.path;
+    if (firstPath != null) service.rememberDir(firstPath);
     for (final f in result.files) {
       Uint8List? bytes = f.bytes;
       if (bytes == null && f.path != null) {
@@ -34,8 +37,11 @@ class SendFilesTab extends StatelessWidget {
       allowMultiple: true,
       withData: true,
       dialogTitle: 'Add files to the shared folder (remote can request them)',
+      initialDirectory: service.lastDir,
     );
     if (result == null) return;
+    final firstPath = result.files.first.path;
+    if (firstPath != null) service.rememberDir(firstPath);
     for (final f in result.files) {
       Uint8List? bytes = f.bytes;
       if (bytes == null && f.path != null) {

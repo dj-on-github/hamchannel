@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -128,6 +130,19 @@ class StatusBar extends StatelessWidget {
 
   final ModemService service;
 
+  Future<void> _pickAndReadPcm(ModemService s) async {
+    final res = await FilePicker.platform.pickFiles(
+      dialogTitle: 'Read a PCM file into the receiver',
+      initialDirectory: s.lastDir,
+    );
+    final path = res?.files.single.path;
+    if (path != null) {
+      s.rememberDir(path);
+      // Fire and forget; progress shows on the button and in the log.
+      unawaited(s.readPcmFile(path));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -194,6 +209,19 @@ class StatusBar extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text('SNR ${s.lastSnrDb.toStringAsFixed(1)} dB'),
                 const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: (!s.running || s.pcmReading)
+                      ? null
+                      : () => _pickAndReadPcm(s),
+                  icon: s.pcmReading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.play_circle_outline),
+                  label: const Text('Read PCM'),
+                ),
+                const SizedBox(width: 8),
                 FilledButton.icon(
                   onPressed: () => s.running ? s.stop() : s.start(),
                   icon: Icon(s.running ? Icons.stop : Icons.play_arrow),
