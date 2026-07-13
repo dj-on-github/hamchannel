@@ -142,7 +142,7 @@ test vectors for demod work. Without `-o` the samples go to stdout:
 
 ```bash
 tools/hc_gen --call W1AW --dest KD2XYZ -m "test message" -o test.f64
-tools/hc_gen --mod 16-qam --ldpc 3/4 -m "hi" | tools/hc_info /dev/stdin
+tools/hc_gen --mod 16-qam --ldpc 3/4 -m "hi" | tools/hc_info
 ```
 
 Both tools build from the same Makefile in `tools/src` (committed as

@@ -6,10 +6,13 @@
 // the format/contents of every packet found.
 //
 // Usage:
-//   hc_info [options] <capture.f64>
+//   hc_info [options] [<capture.f64>]
 //     --width narrow|wide|auto   channel profile to demodulate (default auto)
 //     --verbose, -v              full message text, NAK lists, hashes
 //     --help, -h                 this text
+//
+// With no filename, samples are read from stdin, so hc_gen can pipe
+// straight in:  hc_gen -m "test" | hc_info
 //
 // Build: see the Makefile in this directory (compiles against the main
 // application's lib/ sources, so the demodulation here is byte-identical
@@ -28,7 +31,7 @@ const sampleRate = ModemParams.sampleRate;
 
 bool verbose = false;
 
-void main(List<String> argv) {
+Future<void> main(List<String> argv) async {
   String? widthArg = 'auto';
   String? path;
   for (var i = 0; i < argv.length; i++) {
@@ -49,7 +52,6 @@ void main(List<String> argv) {
         path = a;
     }
   }
-  if (path == null) _usage(2);
   final widths = switch (widthArg) {
     'narrow' => [ChannelWidth.narrow],
     'wide' => [ChannelWidth.wide],
@@ -57,12 +59,23 @@ void main(List<String> argv) {
     _ => _usage(2),
   };
 
-  final f = File(path!);
-  if (!f.existsSync()) {
-    stderr.writeln('hc_info: no such file: $path');
-    exit(1);
+  final Uint8List bytes;
+  if (path == null) {
+    // No filename: read the samples from stdin (e.g. piped from hc_gen).
+    final bb = BytesBuilder(copy: false);
+    await for (final chunk in stdin) {
+      bb.add(chunk);
+    }
+    bytes = bb.takeBytes();
+    path = '<stdin>';
+  } else {
+    final f = File(path!);
+    if (!f.existsSync()) {
+      stderr.writeln('hc_info: no such file: $path');
+      exit(1);
+    }
+    bytes = f.readAsBytesSync();
   }
-  final bytes = f.readAsBytesSync();
   if (bytes.length % 8 != 0) {
     stderr.writeln('warning: file length ${bytes.length} is not a multiple '
         'of 8; trailing ${bytes.length % 8} bytes ignored');
@@ -126,7 +139,9 @@ void main(List<String> argv) {
 
 Never _usage(int code) {
   final out = code == 0 ? stdout : stderr;
-  out.writeln('usage: hc_info [--width narrow|wide|auto] [--verbose] <capture.f64>');
+  out.writeln('usage: hc_info [--width narrow|wide|auto] [--verbose] '
+      '[<capture.f64>]');
+  out.writeln('       (reads stdin when no filename is given)');
   exit(code);
 }
 

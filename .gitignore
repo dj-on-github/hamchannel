@@ -12,6 +12,8 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
+hc_gen
+hc_info
 
 # IntelliJ related
 *.iml
