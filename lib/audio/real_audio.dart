@@ -81,7 +81,7 @@ class RealAudioBackend implements AudioBackend {
     final wasInited = so.isInitialized;
     try {
       if (!wasInited) {
-        await so.init(sampleRate: sampleRate, channels: Channels.mono);
+        await so.init(sampleRate: sampleRate, channels: Channels.stereo);
       }
       for (final d in so.listPlaybackDevices()) {
         outputs.add(AudioDeviceInfo(
@@ -98,9 +98,12 @@ class RealAudioBackend implements AudioBackend {
   Future<void> start() async {
     if (_started) return;
     // --- playback ---
+    // The engine runs stereo and the burst is duplicated onto both
+    // channels, so left and right always carry the identical signal
+    // regardless of how the device/OS would up-mix mono.
     final so = SoLoud.instance;
     if (!so.isInitialized) {
-      await so.init(sampleRate: sampleRate, channels: Channels.mono);
+      await so.init(sampleRate: sampleRate, channels: Channels.stereo);
     }
     if (outputDeviceName != null) {
       try {
@@ -167,21 +170,24 @@ class RealAudioBackend implements AudioBackend {
     _playing = true;
     AudioSource? src;
     try {
-      final f32 = Float32List(samples.length);
+      // Interleaved stereo with L = R (same signal on both paths).
+      final f32 = Float32List(samples.length * 2);
       for (var i = 0; i < samples.length; i++) {
         final v = samples[i];
-        f32[i] = v > 1.0
+        final c = v > 1.0
             ? 1.0
             : v < -1.0
                 ? -1.0
                 : v.toDouble();
+        f32[2 * i] = c;
+        f32[2 * i + 1] = c;
       }
       src = so.setBufferStream(
-        maxBufferSizeBytes: samples.length * 4 + 4096,
+        maxBufferSizeBytes: f32.length * 4 + 4096,
         bufferingType: BufferingType.released,
         bufferingTimeNeeds: 0,
         sampleRate: sampleRate,
-        channels: Channels.mono,
+        channels: Channels.stereo,
         format: BufferType.f32le,
       );
       so.addAudioDataStream(src, f32.buffer.asUint8List());
