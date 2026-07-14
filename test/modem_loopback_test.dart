@@ -193,6 +193,39 @@ void main() {
     expect(got.first.payload, equals(payload));
   });
 
+  test('scrambler: self-inverse, tag-dependent, whitens constant data', () {
+    final a = Uint8List(128); // all zeros
+    Scrambler.apply(a, 5);
+    var ones = 0;
+    for (final b in a) {
+      for (var i = 0; i < 8; i++) {
+        ones += (b >> i) & 1;
+      }
+    }
+    // Whitened: roughly half the bits set.
+    expect(ones, inInclusiveRange(384, 640), reason: '$ones of 1024 bits');
+    // Different tag -> different sequence.
+    final b2 = Uint8List(128);
+    Scrambler.apply(b2, 6);
+    expect(b2, isNot(equals(a)));
+    // XOR twice with the same tag restores the data.
+    Scrambler.apply(a, 5);
+    expect(a.every((v) => v == 0), isTrue);
+  });
+
+  test('all-zero payload round-trips (scrambled systematic bits)', () {
+    final zeros = Uint8List(600);
+    final got = runOnce(
+      width: ChannelWidth.narrow,
+      mod: SubcarrierModulation.qpsk,
+      rate: LdpcRate.half,
+      payload: zeros,
+      snrDb: 10,
+    );
+    expect(got, hasLength(1));
+    expect(got.first.payload, equals(zeros));
+  });
+
   test('constellation capture measures a clean 16-QAM burst', () {
     final p = ModemParams(width: ChannelWidth.narrow);
     final tx = ModemTransmitter(p);

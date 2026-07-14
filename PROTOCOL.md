@@ -1,8 +1,8 @@
 # HamChannel On-Air Protocol Specification
 
-![alt text](hamchannel_icon.svg "Ham Channel Icon")
-
-**Version 1 · protocol as implemented in `lib/dsp`, `lib/fec`, `lib/modem`, `lib/proto`**
+**Version 2 · protocol as implemented in `lib/dsp`, `lib/fec`, `lib/modem`, `lib/proto`**
+*(v2 adds PRBS scrambling of all LDPC info bytes; v1 receivers reject v2
+bursts at the header check and vice versa.)*
 
 This document specifies the complete on-air protocol of HamChannel, an
 acoustic-coupled OFDM data modem for VHF/UHF FM amateur radio. It covers the
@@ -62,6 +62,7 @@ x ^= x << 5    (mod 2^32)
 | LDPC graph                | `0xC0DE0000 XOR (n<<8) XOR (num<<4) XOR den`    |
 | Interleaver               | `0x1EAF0000 XOR n`                              |
 | Filler bits               | `0xF111 XOR burstId`                            |
+| Scrambler PRBS            | `0x5C7AB1E5 XOR (tag+1)·2654435761` — tag = payload block index, or 0x10000 for the header |
 
 ## 3. OFDM physical layer
 
@@ -172,7 +173,7 @@ The header is always transmitted in the most robust mode: **BPSK, LDPC
 | Offset | Size | Field                                              |
 |--------|------|----------------------------------------------------|
 | 0      | 2    | Magic `0x48 0x43` ("HC")                           |
-| 2      | 1    | Protocol version = 1                               |
+| 2      | 1    | Protocol version = 2                               |
 | 3      | 1    | Frame type (0 data, 1 response, 2 beacon)          |
 | 4      | 6    | Source callsign, ASCII, space-padded, upper-case   |
 | 10     | 6    | Destination callsign ("CQ    " for broadcast)      |
@@ -184,6 +185,10 @@ The header is always transmitted in the most robust mode: **BPSK, LDPC
 | 26     | 1    | Flags — bit 0: ACK requested                       |
 | 27     | 3    | Reserved (0)                                       |
 | 30     | 2    | CRC-16/CCITT-FALSE over bytes 0–29                 |
+
+The packed 32-byte header is **scrambled** (§3.8) with the header tag
+before LDPC encoding; the receiver descrambles the decoded bytes before
+checking magic and CRC.
 
 The station callsign in every header satisfies the digital station
 identification requirement (FCC Part 97.119 via data emission).
@@ -198,10 +203,25 @@ info part is:
 ```
 
 CRC-32 is the reflected IEEE 802.3 polynomial (0xEDB88320), computed over
-the user-data portion. Each block is LDPC-encoded to 2048 coded bits,
-bit-interleaved (§5), and the blocks are concatenated into the payload bit
-stream. On receive, each block is decoded and CRC-checked independently; a
-failed block leaves a hole that the ARQ layer repairs.
+the user-data portion. The complete info block (data + CRC) is then
+**scrambled** (§3.8) with the block's index as tag, LDPC-encoded to 2048
+coded bits, and bit-interleaved (§5); the blocks are concatenated into the
+payload bit stream. On receive, each block is decoded, descrambled, and
+CRC-checked independently; a failed block leaves a hole that the ARQ layer
+repairs.
+
+### 3.8 Scrambler
+
+To keep the transmitted symbol distribution random regardless of payload
+content (zero padding, repeated bytes), every LDPC info block is XORed
+with a deterministic PRBS before encoding, and XORed with the same
+sequence after decoding. The sequence is the successive `nextInt(256)`
+outputs of a DetRng (§2) seeded with
+`0x5C7AB1E5 XOR (tag+1)·2654435761` (32-bit wraparound), where `tag` is
+the block's index within the burst's payload (0-based) or `0x10000` for
+the header block. Scrambling is applied after the CRC is computed, so the
+CRC check on receive happens on descrambled bytes. XOR being an
+involution, applying the same sequence twice restores the data.
 
 ## 4. LDPC coding
 
@@ -432,8 +452,9 @@ implementation must reproduce exactly: the DetRng update and every seed in
 including the odd-carrier j-rotation (§3.3), the Gray mapping conventions
 (§3.4), the header layout and CRC-16/CCITT-FALSE (§3.6), the LDPC graph
 construction order (§4.1) and accumulator encoding (§4.2), the interleaver
-permutation (§4.4), the per-block CRC-32 framing (§3.7), and the packet
-wire formats (§6.1) including the FILE_NAK bitmap bit order.
+permutation (§4.4), the per-block CRC-32 framing (§3.7), the info-block
+scrambler and its tags (§3.8), and the packet wire formats (§6.1)
+including the FILE_NAK bitmap bit order.
 
 ## 9. Glossary
 
@@ -577,6 +598,9 @@ noise level (§3.1, §5).
 noise-like statistics, produced by DetRng; used for preamble bits, pilots
 and filler.
 
+**PRBS (Pseudo-Random Binary Sequence)** — A PN sequence used as a
+scrambling mask; see Scrambler.
+
 **Postamble** — The final filler-only OFDM symbol of a burst, present so
 the closing amplitude ramp damages no payload (§3.5).
 
@@ -597,6 +621,11 @@ and phase; 16-QAM carries 4 bits per carrier, 64-QAM carries 6.
 
 **Raised cosine (ramp)** — The smooth half-cosine amplitude taper applied
 to the first and last 5 ms of a burst to avoid clicks and spectral splatter.
+
+**Scrambler** — The deterministic XOR of each LDPC info block with a PRBS
+(§3.8), applied before encoding and removed after decoding, which whitens
+the transmitted bits so repetitive payloads still produce random-looking
+symbols.
 
 **SFO (Sampling-Frequency Offset)** — The mismatch between transmitter and
 receiver sound-card sample clocks; manifests as steadily drifting symbol

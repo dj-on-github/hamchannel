@@ -42,7 +42,7 @@ class BurstHeader {
   });
 
   static const int magic0 = 0x48, magic1 = 0x43; // 'H','C'
-  static const int version = 1;
+  static const int version = 2; // v2: PRBS scrambling of LDPC info bytes
   static const int packedLength = 32;
 
   final int type; // protocol frame type
@@ -110,6 +110,36 @@ class BurstHeader {
   String toString() =>
       'BurstHeader(type:$type $srcCall->$dstCall id:$burstId '
       '${mod.label} r${rate.label} blocks:$blockCount bytes:$payloadBytes)';
+}
+
+// ---------------------------------------------------------------------------
+// Scrambler
+// ---------------------------------------------------------------------------
+
+/// Deterministic PRBS scrambler.
+///
+/// The transmitter XORs each LDPC block's info bytes (user data + CRC, and
+/// the packed header likewise) with a PRBS *before* encoding; the receiver
+/// XORs with the same sequence *after* decoding. This whitens the
+/// systematic bits so the transmitted symbol distribution is random even
+/// for repetitive payloads (zero padding, long runs), keeping the spectrum
+/// flat and the constellation exercised.
+///
+/// The sequence is derived from [DetRng] and the block's position: payload
+/// blocks use their index within the burst as [tag]; the header uses
+/// [headerTag]. XOR twice with the same tag is the identity.
+class Scrambler {
+  static const int _seedBase = 0x5C7AB1E5;
+
+  /// Tag used for the burst header block.
+  static const int headerTag = 0x10000;
+
+  static void apply(Uint8List data, int tag) {
+    final rng = DetRng(_seedBase ^ (tag + 1) * 2654435761);
+    for (var i = 0; i < data.length; i++) {
+      data[i] ^= rng.nextInt(256);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -213,6 +243,7 @@ class ModemTransmitter {
 
     // ---- header coded bits (BPSK) ----
     final hdrInfo = Uint8List(_hdrCode.infoBytes)..setRange(0, 32, header.pack());
+    Scrambler.apply(hdrInfo, Scrambler.headerTag);
     final hdrBits = _hdrIl.interleaveBits(_hdrCode.encode(hdrInfo));
 
     // ---- payload coded bits ----
@@ -224,6 +255,7 @@ class ModemTransmitter {
       if (take > 0) info.setRange(0, take, payload, off);
       final c = crc32(info, 0, code.infoBytes - 4);
       ByteData.sublistView(info).setUint32(code.infoBytes - 4, c);
+      Scrambler.apply(info, blk);
       payBits.setRange(
           blk * code.n, (blk + 1) * code.n, _payIl.interleaveBits(code.encode(info)));
     }
@@ -961,6 +993,7 @@ class ModemReceiver {
       onStatus?.call('header decode failed');
       return false;
     }
+    Scrambler.apply(info, Scrambler.headerTag);
     final hdr = BurstHeader.unpack(Uint8List.sublistView(info, 0, 32));
     if (hdr == null) {
       onStatus?.call('header CRC failed');
@@ -987,6 +1020,7 @@ class ModemReceiver {
       final stats = LdpcDecodeStats();
       final info = code.decode(de, stats: stats);
       if (info != null) {
+        Scrambler.apply(info, blk);
         final want = ByteData.sublistView(info).getUint32(code.infoBytes - 4);
         if (crc32(info, 0, code.infoBytes - 4) == want) {
           _blocks[blk] = Uint8List.sublistView(info, 0, code.infoBytes - 4);
