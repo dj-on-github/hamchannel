@@ -1,5 +1,7 @@
 # HamChannel On-Air Protocol Specification
 
+![alt text](hamchannel_icon.svg "Ham Channel Icon")
+
 **Version 1 · protocol as implemented in `lib/dsp`, `lib/fec`, `lib/modem`, `lib/proto`**
 
 This document specifies the complete on-air protocol of HamChannel, an
