@@ -96,6 +96,7 @@ class _ChannelTabState extends State<ChannelTab> {
                         label: 'Channel width',
                         value: cfg.width,
                         items: const {
+                          ChannelWidth.hf: 'HF — 2.8 kHz (SSB)',
                           ChannelWidth.narrow: 'Narrow — 12 kHz',
                           ChannelWidth.wide: 'Wide — 24 kHz',
                         },
@@ -135,7 +136,7 @@ class _ChannelTabState extends State<ChannelTab> {
                       padding: const EdgeInsets.all(12),
                       child: Text(
                         '${p.activeCarriers} subcarriers '
-                        '(${ModemParams.firstBin * ModemParams.binHz ~/ 1} Hz – '
+                        '(${p.firstBin * ModemParams.binHz ~/ 1} Hz – '
                         '${p.occupiedHz.toStringAsFixed(0)} Hz audio), '
                         '${p.pilotCount} pilots, 46.875 Hz spacing, 24 ms symbols\n'
                         'Raw ${(raw / 1000).toStringAsFixed(2)} kbit/s → '
@@ -293,7 +294,8 @@ class _ChannelTabState extends State<ChannelTab> {
                       ),
                       const SizedBox(width: 12),
                       Text(
-                        'Both stations must use the same bandwidth. ',
+                        'Both stations must use the same width. '
+                        'Modulation & rate are announced in each burst header.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],

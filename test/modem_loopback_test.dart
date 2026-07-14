@@ -277,6 +277,34 @@ void main() {
     // runOnce uses a receiver with capture off (the default).
   });
 
+  test('HF profile (2.8 kHz): QPSK r1/2 at 6 dB', () {
+    final got = runOnce(
+      width: ChannelWidth.hf,
+      mod: SubcarrierModulation.qpsk,
+      rate: LdpcRate.half,
+      payload: payload,
+      snrDb: 6,
+    );
+    expect(got, hasLength(1));
+    expect(got.first.payload, equals(payload));
+  });
+
+  test('HF profile: 16-QAM r3/4 with +-50 ppm clock offset', () {
+    for (final ppm in [-50.0, 50.0]) {
+      final got = runOnce(
+        width: ChannelWidth.hf,
+        mod: SubcarrierModulation.qam16,
+        rate: LdpcRate.threeQuarters,
+        payload: payload,
+        snrDb: 16,
+        sfoPpm: ppm,
+        seed: 7,
+      );
+      expect(got, hasLength(1), reason: 'hf sfo $ppm ppm');
+      expect(got.first.payload, equals(payload), reason: 'hf sfo $ppm ppm');
+    }
+  });
+
   test('empty payload (header-only burst) round-trips', () {
     final got = runOnce(
       width: ChannelWidth.narrow,

@@ -4,14 +4,15 @@
 /// giving a subcarrier spacing of 46.875 Hz. An OFDM symbol with its 1/8
 /// cyclic prefix is 1152 samples (24 ms) long.
 ///
-/// Two channel profiles are provided:
+/// Three channel profiles are provided:
+///  * hf     — audio energy confined to a 2.8 kHz SSB channel
 ///  * narrow — audio energy confined to a 12 kHz channel
 ///  * wide   — audio energy confined to a 24 kHz channel
 library;
 
 import 'dart:math' as math;
 
-enum ChannelWidth { narrow, wide }
+enum ChannelWidth { hf, narrow, wide }
 
 enum SubcarrierModulation { bpsk, qpsk, qam16, qam64 }
 
@@ -66,12 +67,20 @@ class ModemParams {
 
   static const double binHz = sampleRate / fftSize; // 46.875 Hz
 
-  /// First active FFT bin (750 Hz) — keeps clear of DC and hum.
-  static const int firstBin = 16;
+  /// First active FFT bin. HF starts at bin 8 (375 Hz) to fit the SSB
+  /// passband; the audio profiles start at bin 16 (750 Hz) to keep clear
+  /// of DC and hum.
+  int get firstBin => width == ChannelWidth.hf ? 8 : 16;
 
-  /// Number of active subcarriers. Narrow: 240 (750 Hz .. 12 kHz);
-  /// wide: 480 (750 Hz .. 23.25 kHz).
-  int get activeCarriers => width == ChannelWidth.narrow ? 240 : 480;
+  /// Number of active subcarriers.
+  ///   hf:     52 (375 Hz .. 2812 Hz — fits a 2.8 kHz SSB channel)
+  ///   narrow: 240 (750 Hz .. 12 kHz)
+  ///   wide:   480 (750 Hz .. 23.25 kHz)
+  int get activeCarriers => switch (width) {
+        ChannelWidth.hf => 52,
+        ChannelWidth.narrow => 240,
+        ChannelWidth.wide => 480,
+      };
 
   /// Pilot every [pilotSpacing]-th active carrier.
   static const int pilotSpacing = 8;

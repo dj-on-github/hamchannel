@@ -738,8 +738,9 @@ class ModemReceiver {
         }
       }
       _symCursor++;
-      // Safety: bail out of absurdly long collections.
-      if (_symCursor > 4200) {
+      // Safety: bail out of absurdly long collections. (The HF profile
+      // carries few bits per symbol, so legitimate bursts can be long.)
+      if (_symCursor > 12000) {
         _resetSearch(_chanestAbs + _symLen);
         return true;
       }
@@ -942,7 +943,7 @@ class ModemReceiver {
       // Shifting the window by -s samples multiplies each bin k by
       // e^{-j 2 pi k s / N} relative to before; pre-compensate in H.
       for (var i = 0; i < nA; i++) {
-        final k = ModemParams.firstBin + i;
+        final k = p.firstBin + i;
         final a = -2 * math.pi * k * s / ModemParams.fftSize;
         final wr = math.cos(a), wi = math.sin(a);
         final hr = _hRe[i] * wr - _hIm[i] * wi;

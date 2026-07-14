@@ -103,7 +103,7 @@ class _HomeScreenState extends State<HomeScreen>
             Tab(icon: Icon(Icons.upload_file), text: 'Send Files'),
             Tab(icon: Icon(Icons.folder_shared), text: 'Files'),
             Tab(icon: Icon(Icons.scatter_plot), text: 'Signal Quality'),
-            Tab(icon: Icon(Icons.tune), text: 'Channel'),
+            Tab(icon: Icon(Icons.settings), text: 'Settings'),
           ],
         ),
       ),

@@ -19,7 +19,7 @@ void main() {
     expect(find.text('Send Files'), findsOneWidget);
     expect(find.text('Files'), findsOneWidget);
     expect(find.text('Signal Quality'), findsOneWidget);
-    expect(find.text('Channel'), findsOneWidget);
+    expect(find.text('Settings'), findsOneWidget);
     expect(find.text('Start'), findsOneWidget);
     service.dispose();
     tmp.deleteSync(recursive: true);

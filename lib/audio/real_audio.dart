@@ -1,6 +1,6 @@
 /// Real sound-card backend: `record` for capture, `flutter_soloud`
 /// (miniaudio) for playback. Both run at 48 kHz mono, and both directions
-/// support selecting a specific audio device from the Channel tab.
+/// support selecting a specific audio device from the Settings tab.
 ///
 /// Wiring to the radio:
 ///   * laptop headphone out  -> radio mic input (through an attenuator or

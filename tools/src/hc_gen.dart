@@ -7,7 +7,7 @@
 // "Read PCM" and hc_info consume.
 //
 // Usage:
-//   hc_gen [--width narrow|wide] [--mod bpsk|qpsk|16-qam|64-qam]
+//   hc_gen [--width hf|narrow|wide] [--mod bpsk|qpsk|16-qam|64-qam]
 //          [--ldpc 1/2|2/3|3/4|5/6] [--call <callsign>]
 //          [--dest <destination callsign or CQ>]
 //          --message|-m <message contents> [-o <filename>]
@@ -31,7 +31,7 @@ import 'package:hamchannel/proto/packets.dart';
 Never _usage(int code) {
   final out = code == 0 ? stdout : stderr;
   out.writeln(
-      'usage: hc_gen [--width narrow|wide] [--mod bpsk|qpsk|16-qam|64-qam]\n'
+      'usage: hc_gen [--width hf|narrow|wide] [--mod bpsk|qpsk|16-qam|64-qam]\n'
       '              [--ldpc 1/2|2/3|3/4|5/6] [--call <callsign>]\n'
       '              [--dest <destination callsign or CQ>]\n'
       '              --message|-m <message contents> [-o <filename>]');
@@ -58,6 +58,7 @@ Future<void> main(List<String> argv) async {
         _usage(0);
       case '--width':
         width = switch (next(i++).toLowerCase()) {
+          'hf' => ChannelWidth.hf,
           'narrow' => ChannelWidth.narrow,
           'wide' => ChannelWidth.wide,
           _ => _usage(2),

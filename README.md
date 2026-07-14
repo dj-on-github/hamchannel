@@ -19,15 +19,20 @@ format, packet wire formats, ARQ procedures) is specified in
 
 ## Physical layer
 
-| Property | Narrow | Wide |
-|---|---|---|
-| Channel occupancy | 12 kHz | 24 kHz |
-| Active subcarriers | 240 | 480 |
-| Audio span | 750 Hz – 12 kHz | 750 Hz – 23.25 kHz |
+| Property | HF | Narrow | Wide |
+|---|---|---|---|
+| Channel occupancy | 2.8 kHz (SSB) | 12 kHz | 24 kHz |
+| Active subcarriers | 52 | 240 | 480 |
+| Audio span | 375 Hz – 2.81 kHz | 750 Hz – 12 kHz | 750 Hz – 23.25 kHz |
+
+The HF profile uses the same modulations, LDPC codes and frame format on
+fewer subcarriers (~1.9 kbit/s net at QPSK 1/2). On SSB, both stations
+must be tuned within a few hertz — the modem has no carrier-frequency
+search.
 
 * 48 kHz sample rate, 1024-point FFT (46.875 Hz spacing), 1/8 cyclic prefix,
   24 ms symbols.
-* Subcarrier modulation: **BPSK, QPSK, 16-QAM or 64-QAM** (Channel tab).
+* Subcarrier modulation: **BPSK, QPSK, 16-QAM or 64-QAM** (Settings tab).
 * FEC: systematic IRA-type **LDPC (n = 2048)** at rates **1/2, 2/3, 3/4,
   5/6**, normalized min-sum decoder; every block carries a CRC-32.
 * Burst = VOX leader (repeated sync symbol) + channel-estimation symbol +
@@ -59,9 +64,9 @@ format, packet wire formats, ARQ procedures) is specified in
    the last received transmission, with SNR and EVM statistics (RMS, max,
    standard deviation). Capture is off by default; enable it with the
    switch at the top of the tab.
-5. **Channel** — narrow/wide, subcarrier modulation, LDPC rate, callsigns,
-   audio input/output device selection, TX level, VOX leader length,
-   PCM capture, loopback test mode.
+5. **Settings** — channel width (narrow/wide), subcarrier modulation, LDPC
+   rate, callsigns, audio input/output device selection, TX level, VOX
+   leader length, PCM capture, loopback test mode.
 
 ## Radio wiring (VOX keying)
 
@@ -70,7 +75,7 @@ laptop headphone out ──[attenuator 10:1 or isolation transformer]──▶ r
 radio speaker/data out ──────────────────────────────────────────▶ laptop mic in
 ```
 
-* Enable VOX on the radio. Increase **VOX leader** (Channel tab) if the
+* Enable VOX on the radio. Increase **VOX leader** (Settings tab) if the
   start of bursts is clipped; 360 ms suits most HTs.
 * Set radio and laptop volumes so the **RX meter moves to mid-scale without
   clipping**; keep **TX level** low enough that the FM deviation stays clean
@@ -116,7 +121,7 @@ sudo apt install pulseaudio-utils libasound2-dev
 ## Offline analysis (PCM files)
 
 For demod testing and offline analysis, transmissions can be captured to a
-raw PCM file: **Channel tab → Write PCM…** picks the file, **Close** ends
+raw PCM file: **Settings tab → Write PCM…** picks the file, **Close** ends
 the capture. The format is mono, 48 kHz, 64-bit IEEE 754 little-endian
 floats (`.f64`); only transmitted bursts are written — idle time adds
 nothing, so a capture of N bursts is simply the N waveforms back to back.
@@ -164,5 +169,5 @@ All tools build from the same Makefile in `tools/src` (committed as
 
 ## Quick start without a radio
 
-Channel tab → enable **Loopback test mode** → Start. Anything you transmit
+Settings tab → enable **Loopback test mode** → Start. Anything you transmit
 is decoded by your own receiver, which exercises the whole chain.

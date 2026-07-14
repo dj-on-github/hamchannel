@@ -7,7 +7,7 @@
 //
 // Usage:
 //   hc_info [options] [<capture.f64>]
-//     --width narrow|wide|auto   channel profile to demodulate (default auto)
+//     --width hf|narrow|wide|auto  channel profile (default auto)
 //     --verbose, -v              full message text, NAK lists, hashes
 //     --help, -h                 this text
 //
@@ -53,6 +53,7 @@ Future<void> main(List<String> argv) async {
     }
   }
   final widths = switch (widthArg) {
+    'hf' => [ChannelWidth.hf],
     'narrow' => [ChannelWidth.narrow],
     'wide' => [ChannelWidth.wide],
     'auto' => ChannelWidth.values,
@@ -134,12 +135,12 @@ Future<void> main(List<String> argv) async {
   }
 
   print('Summary: ${found.length} burst(s)'
-      '${widths.length > 1 ? ' — narrow: ${found.where((x) => x.$1 == ChannelWidth.narrow).length}, wide: ${found.where((x) => x.$1 == ChannelWidth.wide).length}' : ''}');
+      '${widths.length > 1 ? ' — ${ChannelWidth.values.map((w) => '${w.name}: ${found.where((x) => x.$1 == w).length}').join(', ')}' : ''}');
 }
 
 Never _usage(int code) {
   final out = code == 0 ? stdout : stderr;
-  out.writeln('usage: hc_info [--width narrow|wide|auto] [--verbose] '
+  out.writeln('usage: hc_info [--width hf|narrow|wide|auto] [--verbose] '
       '[<capture.f64>]');
   out.writeln('       (reads stdin when no filename is given)');
   exit(code);

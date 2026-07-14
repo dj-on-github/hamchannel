@@ -75,16 +75,25 @@ x ^= x << 5    (mod 2^32)
 | Cyclic prefix        | 128 samples (1/8)              |
 | Symbol length        | 1152 samples = 24 ms           |
 | Symbol rate          | 41.667 symbols/s               |
-| First active bin     | 16 (750 Hz)                    |
+| First active bin     | profile-dependent (see below)  |
 
-Two channel profiles (both stations must use the same one):
+Three channel profiles (both stations must use the same one):
 
 | Profile | Active carriers A | Audio span        | Occupied BW | Pilots | Data carriers |
 |---------|-------------------|-------------------|-------------|--------|---------------|
+| HF      | 52 (bins 8–59)    | 375 Hz – 2812 Hz  | ≤ 2.8 kHz   | 6      | 46            |
 | Narrow  | 240 (bins 16–255) | 750 Hz – 12.0 kHz | ≤ 12 kHz    | 30     | 210           |
 | Wide    | 480 (bins 16–495) | 750 Hz – 23.25 kHz| ≤ 24 kHz    | 60     | 420           |
 
-Active carriers are indexed `i = 0 … A-1` (FFT bin = 16 + i). **Pilot
+The HF profile fits a 2.8 kHz SSB channel and uses the identical burst
+format, modulations and LDPC codes — only the carrier count and first bin
+(8 instead of 16) differ. Note that SSB translates audio frequencies by
+any transceiver mistuning, and this protocol performs no
+carrier-frequency-offset search: the pilot phase tracker absorbs constant
+offsets of only a few hertz, so HF stations must be tuned within roughly
+±3 Hz of each other. FM channels (narrow/wide) have no such constraint.
+
+Active carriers are indexed `i = 0 … A-1` (FFT bin = firstBin + i). **Pilot
 positions** are `i = 8j + 4` for `j = 0 … A/8-1` (i.e. carriers 4, 12, 20,
 …). All other active carriers are data carriers, filled in ascending order.
 
@@ -400,6 +409,14 @@ of the net figure.
 | QPSK 3/4        |      17.50 |      13.13 | | 16-QAM 3/4      |      70.00 |      52.50 |
 | 16-QAM 3/4      |      35.00 |      26.25 | | 64-QAM 5/6      |     105.00 |      87.50 |
 | 64-QAM 5/6      |      52.50 |      43.75 | |                 |            |            |
+
+| Mode (HF, 2.8 kHz) | Raw kbit/s | Net kbit/s |
+|--------------------|-----------:|-----------:|
+| BPSK 1/2           |       1.92 |       0.96 |
+| QPSK 1/2           |       3.83 |       1.92 |
+| QPSK 3/4           |       3.83 |       2.88 |
+| 16-QAM 3/4         |       7.67 |       5.75 |
+| 64-QAM 5/6         |      11.50 |       9.58 |
 
 Measured decode thresholds through the simulated AWGN channel (time-domain
 SNR over the occupied band): BPSK 1/2 ≈ 3 dB, QPSK 1/2 ≈ 6 dB, 16-QAM 3/4 ≈
