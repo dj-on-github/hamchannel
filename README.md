@@ -1,5 +1,7 @@
 # HamChannel
 
+![alt text](hamchannel_icon.svg "Ham Channel Icon")
+
 An OFDM soundcard data modem for VHF/UHF FM ham radios, built in Flutter for
 desktop (macOS / Linux / Windows). It sends text messages and files between
 two stations using the laptop's headphone and microphone jacks wired to the
