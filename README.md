@@ -1,7 +1,5 @@
 # HamChannel
 
-![alt text](hamchannel_icon.svg "Ham Channel Icon")
-
 An OFDM soundcard data modem for VHF/UHF FM ham radios, built in Flutter for
 desktop (macOS / Linux / Windows). It sends text messages and files between
 two stations using the laptop's headphone and microphone jacks wired to the
@@ -97,9 +95,14 @@ macOS: microphone permission is requested on first start
 `com.apple.security.device.audio-input` entitlement must be present in
 `DebugProfile.entitlements` / `Release.entitlements`).
 
-Linux: audio capture uses PulseAudio's `parecord` (works under PipeWire via
-`pipewire-pulse`), and building the playback engine (flutter_soloud /
-miniaudio) needs the ALSA development headers:
+Linux: the device pulldowns list each PulseAudio/PipeWire **port**
+separately (e.g. "CUBILUX CB5 Analog Stereo — Line In" vs "… — Microphone"),
+because Pulse models physical jacks as ports of one device; selecting an
+entry switches the port automatically (`pactl set-source-port` /
+`set-sink-port`) when the modem starts. Audio capture uses PulseAudio's
+`parecord` (works under PipeWire via `pipewire-pulse`), and building the
+playback engine (flutter_soloud / miniaudio) needs the ALSA development
+headers:
 
 ```bash
 sudo apt install pulseaudio-utils libasound2-dev

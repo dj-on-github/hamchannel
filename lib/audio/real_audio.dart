@@ -12,6 +12,8 @@
 library;
 
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_soloud/flutter_soloud.dart';
@@ -62,9 +64,75 @@ class RealAudioBackend implements AudioBackend {
   @override
   bool get isPlaying => _playing;
 
+  /// Separator used on Linux to encode a PulseAudio/PipeWire device+port
+  /// selection in one id: `deviceName<sep>portName[<sep>description]`.
+  /// Pulse models physical jacks (mic vs line-in, headphone vs line-out)
+  /// as *ports* of a single device, so each port gets its own pulldown
+  /// entry.
+  static const String portSep = '\t';
+
+  /// Linux: enumerate Pulse/PipeWire sources and sinks with their ports so
+  /// each physical jack is individually selectable. Returns null when
+  /// pactl (or its JSON output mode) is unavailable — callers then fall
+  /// back to the plain plugin enumeration.
+  static Future<AudioDeviceLists?> _enumeratePulsePorts() async {
+    try {
+      final src =
+          await Process.run('pactl', ['--format=json', 'list', 'sources']);
+      final snk =
+          await Process.run('pactl', ['--format=json', 'list', 'sinks']);
+      if (src.exitCode != 0 || snk.exitCode != 0) return null;
+
+      List<AudioDeviceInfo> parse(String jsonText, {required bool isSink}) {
+        final out = <AudioDeviceInfo>[];
+        for (final e in jsonDecode(jsonText) as List) {
+          final m = e as Map<String, dynamic>;
+          final name = m['name'] as String? ?? '';
+          if (name.isEmpty) continue;
+          if (!isSink && name.endsWith('.monitor')) continue;
+          final desc = m['description'] as String? ?? name;
+          final ports = (m['ports'] as List?) ?? const [];
+          if (ports.length <= 1) {
+            out.add(AudioDeviceInfo(
+              // Sinks carry their description so the playback engine
+              // (which names Pulse devices by description) can be matched.
+              id: isSink ? '$name$portSep$portSep$desc' : name,
+              label: desc,
+            ));
+          } else {
+            for (final p in ports) {
+              final pm = p as Map<String, dynamic>;
+              final pName = pm['name'] as String? ?? '';
+              final pDesc = pm['description'] as String? ?? pName;
+              out.add(AudioDeviceInfo(
+                id: isSink
+                    ? '$name$portSep$pName$portSep$desc'
+                    : '$name$portSep$pName',
+                label: '$desc — $pDesc',
+              ));
+            }
+          }
+        }
+        return out;
+      }
+
+      final inputs = parse(src.stdout as String, isSink: false);
+      final outputs = parse(snk.stdout as String, isSink: true);
+      if (inputs.isEmpty && outputs.isEmpty) return null;
+      return AudioDeviceLists(inputs: inputs, outputs: outputs);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Enumerate capture and playback devices. Safe to call while the modem
   /// is stopped; initializes the playback engine temporarily if needed.
   static Future<AudioDeviceLists> enumerateDevices() async {
+    if (Platform.isLinux) {
+      // Port-aware enumeration so line-in/line-out jacks are selectable.
+      final pulse = await _enumeratePulsePorts();
+      if (pulse != null) return pulse;
+    }
     final inputs = <AudioDeviceInfo>[];
     final outputs = <AudioDeviceInfo>[];
     final rec = AudioRecorder();
@@ -94,9 +162,43 @@ class RealAudioBackend implements AudioBackend {
     return AudioDeviceLists(inputs: inputs, outputs: outputs);
   }
 
+  /// Switch a Pulse device to the requested port ([setCmd] is
+  /// `set-source-port` or `set-sink-port`) and return the id parts.
+  Future<List<String>> _applyPulsePort(String encoded, String setCmd) async {
+    final parts = encoded.split(portSep);
+    if (parts.length > 1 && parts[1].isNotEmpty) {
+      try {
+        final r = await Process.run('pactl', [setCmd, parts[0], parts[1]]);
+        if (r.exitCode != 0) {
+          lastError = '$setCmd ${parts[1]}: ${'${r.stderr}'.trim()}';
+        }
+      } catch (e) {
+        lastError = '$setCmd failed: $e';
+      }
+    }
+    return parts;
+  }
+
   @override
   Future<void> start() async {
     if (_started) return;
+
+    // --- Linux jack/port selection (mic vs line-in, phones vs line-out) ---
+    var recDeviceId = inputDeviceId;
+    var outName = outputDeviceName;
+    if (Platform.isLinux) {
+      if (recDeviceId != null && recDeviceId.contains(portSep)) {
+        final parts = await _applyPulsePort(recDeviceId, 'set-source-port');
+        recDeviceId = parts[0];
+      }
+      if (outName != null && outName.contains(portSep)) {
+        final parts = await _applyPulsePort(outName, 'set-sink-port');
+        // The playback engine (miniaudio) names Pulse devices by their
+        // description, carried as the third encoded part.
+        outName = parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null;
+      }
+    }
+
     // --- playback ---
     // The engine runs stereo and the burst is duplicated onto both
     // channels, so left and right always carry the identical signal
@@ -105,11 +207,11 @@ class RealAudioBackend implements AudioBackend {
     if (!so.isInitialized) {
       await so.init(sampleRate: sampleRate, channels: Channels.stereo);
     }
-    if (outputDeviceName != null) {
+    if (outName != null) {
       try {
         final devs = so.listPlaybackDevices();
         for (final d in devs) {
-          if (d.name == outputDeviceName) {
+          if (d.name == outName) {
             so.changeDevice(newDevice: d);
             break;
           }
@@ -129,9 +231,9 @@ class RealAudioBackend implements AudioBackend {
         encoder: AudioEncoder.pcm16bits,
         sampleRate: sampleRate,
         numChannels: 1,
-        device: inputDeviceId == null
+        device: recDeviceId == null
             ? null
-            : InputDevice(id: inputDeviceId!, label: inputDeviceLabel),
+            : InputDevice(id: recDeviceId, label: inputDeviceLabel),
         echoCancel: false,
         noiseSuppress: false,
         autoGain: false,
