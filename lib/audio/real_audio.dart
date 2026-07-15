@@ -118,11 +118,115 @@ class RealAudioBackend implements AudioBackend {
 
       final inputs = parse(src.stdout as String, isSink: false);
       final outputs = parse(snk.stdout as String, isSink: true);
+
+      // Card-level output ports that exist only under a different card
+      // profile (e.g. a USB codec whose active profile is S/PDIF: its
+      // Line Out / Headphones ports have no sink yet). Selecting such an
+      // entry switches the card profile at start.
+      try {
+        final crd =
+            await Process.run('pactl', ['--format=json', 'list', 'cards']);
+        if (crd.exitCode == 0) {
+          final sinkPortIds = outputs.map((o) => o.id).toSet();
+          for (final e in jsonDecode(crd.stdout as String) as List) {
+            final m = e as Map<String, dynamic>;
+            final cardName = m['name'] as String? ?? '';
+            if (cardName.isEmpty) continue;
+            final props =
+                (m['properties'] as Map?)?.cast<String, dynamic>() ?? {};
+            final cardDesc = (props['device.description'] as String?) ??
+                (props['device.nick'] as String?) ??
+                cardName;
+            // Profile name -> priority, for picking the best profile.
+            final profPriority = <String, num>{};
+            for (final p in (m['profiles'] as List? ?? const [])) {
+              final pm = p as Map<String, dynamic>;
+              profPriority[pm['name'] as String? ?? ''] =
+                  (pm['priority'] as num?) ?? 0;
+            }
+            for (final p in (m['ports'] as List? ?? const [])) {
+              final pm = p as Map<String, dynamic>;
+              final pName = pm['name'] as String? ?? '';
+              final direction =
+                  (pm['direction'] as String?)?.toLowerCase() ?? '';
+              final isOutput = direction == 'output' ||
+                  (direction.isEmpty && pName.contains('output'));
+              if (!isOutput) continue;
+              // Skip ports already offered by an existing sink.
+              if (sinkPortIds
+                  .any((id) => id.contains('$portSep$pName$portSep'))) {
+                continue;
+              }
+              final pProfiles = (pm['profiles'] as List? ?? const [])
+                  .map((x) => '$x')
+                  .where((s) => s.contains('output'))
+                  .toList();
+              if (pProfiles.isEmpty) continue;
+              // Prefer a profile that keeps analog input alive, then the
+              // highest-priority one.
+              pProfiles.sort((a, b) {
+                final ai = a.contains('input:analog') ? 1 : 0;
+                final bi = b.contains('input:analog') ? 1 : 0;
+                if (ai != bi) return bi - ai;
+                return ((profPriority[b] ?? 0) - (profPriority[a] ?? 0))
+                    .sign
+                    .toInt();
+              });
+              final pDesc = pm['description'] as String? ?? pName;
+              outputs.add(AudioDeviceInfo(
+                id: 'card:$cardName$portSep${pProfiles.first}$portSep$pName',
+                label: '$cardDesc — $pDesc',
+              ));
+            }
+          }
+        }
+      } catch (_) {
+        // Card enumeration is best-effort; sinks alone still work.
+      }
+
       if (inputs.isEmpty && outputs.isEmpty) return null;
       return AudioDeviceLists(inputs: inputs, outputs: outputs);
     } catch (_) {
       return null;
     }
+  }
+
+  /// Activate a `card:`-encoded output selection: switch the card profile,
+  /// wait for the sink to appear, select its port, and return the sink
+  /// description (for playback-engine device matching) or null.
+  Future<String?> _activateCardOutput(
+      String cardName, String profile, String portName) async {
+    try {
+      final r = await Process.run(
+          'pactl', ['set-card-profile', cardName, profile]);
+      if (r.exitCode != 0) {
+        lastError = 'set-card-profile: ${'${r.stderr}'.trim()}';
+        return null;
+      }
+      for (var attempt = 0; attempt < 10; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        final snk =
+            await Process.run('pactl', ['--format=json', 'list', 'sinks']);
+        if (snk.exitCode != 0) continue;
+        for (final e in jsonDecode(snk.stdout as String) as List) {
+          final m = e as Map<String, dynamic>;
+          final props =
+              (m['properties'] as Map?)?.cast<String, dynamic>() ?? {};
+          if (props['device.name'] != cardName) continue;
+          final ports = (m['ports'] as List? ?? const [])
+              .map((p) => (p as Map)['name'] as String? ?? '');
+          if (!ports.contains(portName)) continue;
+          final sinkName = m['name'] as String? ?? '';
+          await Process.run(
+              'pactl', ['set-sink-port', sinkName, portName]);
+          return m['description'] as String? ?? sinkName;
+        }
+      }
+      lastError = 'sink for $portName did not appear after profile switch';
+    } catch (e) {
+      lastError = 'card profile switch failed: $e';
+    }
+    return null;
   }
 
   /// Enumerate capture and playback devices. Safe to call while the modem
@@ -191,7 +295,13 @@ class RealAudioBackend implements AudioBackend {
         final parts = await _applyPulsePort(recDeviceId, 'set-source-port');
         recDeviceId = parts[0];
       }
-      if (outName != null && outName.contains(portSep)) {
+      if (outName != null && outName.startsWith('card:')) {
+        // Port only exists under a different card profile: switch it.
+        final parts = outName.substring(5).split(portSep);
+        outName = parts.length > 2
+            ? await _activateCardOutput(parts[0], parts[1], parts[2])
+            : null;
+      } else if (outName != null && outName.contains(portSep)) {
         final parts = await _applyPulsePort(outName, 'set-sink-port');
         // The playback engine (miniaudio) names Pulse devices by their
         // description, carried as the third encoded part.
