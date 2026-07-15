@@ -90,6 +90,14 @@ class _HomeScreenState extends State<HomeScreen>
     super.dispose();
   }
 
+  static const _tabDefs = [
+    (Icons.chat, 'Messages'),
+    (Icons.upload_file, 'Send Files'),
+    (Icons.folder_shared, 'Files'),
+    (Icons.scatter_plot, 'Signal Quality'),
+    (Icons.settings, 'Settings'),
+  ];
+
   @override
   Widget build(BuildContext context) {
     final s = widget.service;
@@ -98,12 +106,17 @@ class _HomeScreenState extends State<HomeScreen>
         title: const Text('HamChannel — OFDM/LDPC soundcard modem'),
         bottom: TabBar(
           controller: _tabs,
-          tabs: const [
-            Tab(icon: Icon(Icons.chat), text: 'Messages'),
-            Tab(icon: Icon(Icons.upload_file), text: 'Send Files'),
-            Tab(icon: Icon(Icons.folder_shared), text: 'Files'),
-            Tab(icon: Icon(Icons.scatter_plot), text: 'Signal Quality'),
-            Tab(icon: Icon(Icons.settings), text: 'Settings'),
+          tabs: [
+            // Each tab is wrapped in an opaque GestureDetector so a click
+            // anywhere in the tab's area — icon included — switches tabs
+            // (on desktop the icon region can otherwise miss the tab's
+            // built-in tap target).
+            for (var i = 0; i < _tabDefs.length; i++)
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _tabs.animateTo(i),
+                child: Tab(icon: Icon(_tabDefs[i].$1), text: _tabDefs[i].$2),
+              ),
           ],
         ),
       ),
