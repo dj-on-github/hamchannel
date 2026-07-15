@@ -121,13 +121,24 @@ class RealAudioBackend implements AudioBackend {
 
       // Card-level output ports that exist only under a different card
       // profile (e.g. a USB codec whose active profile is S/PDIF: its
-      // Line Out / Headphones ports have no sink yet). Selecting such an
-      // entry switches the card profile at start.
+      // analog output ports have no sink yet). Selecting such an entry
+      // switches the card profile at start.
+      //
+      // Note: pactl's JSON encodes a *card's* ports/profiles as objects
+      // keyed by name (unlike sinks, which use arrays); accept both.
       try {
+        // Ports already offered by an existing sink.
+        final presentPorts = <String>{};
+        for (final e in jsonDecode(snk.stdout as String) as List) {
+          for (final p in ((e as Map)['ports'] as List? ?? const [])) {
+            final n = (p as Map)['name'] as String?;
+            if (n != null) presentPorts.add(n);
+          }
+        }
+
         final crd =
             await Process.run('pactl', ['--format=json', 'list', 'cards']);
         if (crd.exitCode == 0) {
-          final sinkPortIds = outputs.map((o) => o.id).toSet();
           for (final e in jsonDecode(crd.stdout as String) as List) {
             final m = e as Map<String, dynamic>;
             final cardName = m['name'] as String? ?? '';
@@ -137,26 +148,41 @@ class RealAudioBackend implements AudioBackend {
             final cardDesc = (props['device.description'] as String?) ??
                 (props['device.nick'] as String?) ??
                 cardName;
-            // Profile name -> priority, for picking the best profile.
+            // Profile name -> priority (map- or list-shaped JSON).
             final profPriority = <String, num>{};
-            for (final p in (m['profiles'] as List? ?? const [])) {
-              final pm = p as Map<String, dynamic>;
-              profPriority[pm['name'] as String? ?? ''] =
-                  (pm['priority'] as num?) ?? 0;
+            final profJson = m['profiles'];
+            if (profJson is Map) {
+              profJson.forEach((k, v) {
+                profPriority['$k'] = ((v as Map)['priority'] as num?) ?? 0;
+              });
+            } else if (profJson is List) {
+              for (final p in profJson) {
+                final pm = p as Map;
+                profPriority['${pm['name']}'] =
+                    (pm['priority'] as num?) ?? 0;
+              }
             }
-            for (final p in (m['ports'] as List? ?? const [])) {
-              final pm = p as Map<String, dynamic>;
-              final pName = pm['name'] as String? ?? '';
+            // Ports (map- or list-shaped JSON) -> (name, details).
+            final portEntries = <MapEntry<String, Map>>[];
+            final portJson = m['ports'];
+            if (portJson is Map) {
+              portJson.forEach(
+                  (k, v) => portEntries.add(MapEntry('$k', v as Map)));
+            } else if (portJson is List) {
+              for (final p in portJson) {
+                final pm = p as Map;
+                portEntries.add(MapEntry('${pm['name']}', pm));
+              }
+            }
+            for (final entry in portEntries) {
+              final pName = entry.key;
+              final pm = entry.value;
               final direction =
-                  (pm['direction'] as String?)?.toLowerCase() ?? '';
+                  ('${pm['direction'] ?? ''}').toLowerCase();
               final isOutput = direction == 'output' ||
                   (direction.isEmpty && pName.contains('output'));
               if (!isOutput) continue;
-              // Skip ports already offered by an existing sink.
-              if (sinkPortIds
-                  .any((id) => id.contains('$portSep$pName$portSep'))) {
-                continue;
-              }
+              if (presentPorts.contains(pName)) continue;
               final pProfiles = (pm['profiles'] as List? ?? const [])
                   .map((x) => '$x')
                   .where((s) => s.contains('output'))
@@ -172,7 +198,7 @@ class RealAudioBackend implements AudioBackend {
                     .sign
                     .toInt();
               });
-              final pDesc = pm['description'] as String? ?? pName;
+              final pDesc = '${pm['description'] ?? pName}';
               outputs.add(AudioDeviceInfo(
                 id: 'card:$cardName$portSep${pProfiles.first}$portSep$pName',
                 label: '$cardDesc — $pDesc',
