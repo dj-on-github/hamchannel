@@ -25,6 +25,9 @@ dependencies:
   path_provider: ^2.1.0
   # Config persistence.
   shared_preferences: ^2.3.0
+  # PNG rendering for the hc_view command-line tool (pure Dart; unused
+  # code is tree-shaken out of the app binaries).
+  image: ^4.1.0
 
 dev_dependencies:
   flutter_test:

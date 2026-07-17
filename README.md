@@ -1,7 +1,5 @@
 # HamChannel
 
-![alt text](hamchannel_icon.svg "Ham Channel Icon")
-
 An OFDM soundcard data modem for VHF/UHF FM ham radios, built in Flutter for
 desktop (macOS / Linux / Windows). It sends text messages and files between
 two stations using the laptop's headphone and microphone jacks wired to the
@@ -185,6 +183,15 @@ tools chain into a full offline test bench:
 ```bash
 tools/hc_gen -m "test" | tools/hc_ruin --fade-rate 2 --fade-k 4 \
     --snr 10 --pn-sigma 3 | tools/hc_info
+```
+
+**hc_view** renders a constellation-diagram PNG from a capture, mirroring
+the app's Signal Quality tab: constellation on the left, the SNR/EVM/BER
+and CRC figures as text on the right. With multiple bursts in the file it
+renders the last one (`--burst N` selects another):
+
+```bash
+tools/hc_gen -m "test" | tools/hc_ruin --snr 8 | tools/hc_view -o quality.png
 ```
 
 All tools build from the same Makefile in `tools/src` (committed as
