@@ -11,6 +11,7 @@ import '../audio/audio_backend.dart';
 import '../audio/real_audio.dart';
 import '../dsp/modem_params.dart';
 import '../proto/link.dart';
+import '../proto/packets.dart';
 import 'modem.dart';
 
 class AppConfig {
@@ -34,6 +35,10 @@ class AppConfig {
   /// here on the next use, including across app restarts.
   String? lastDir;
 
+  /// FCC Logging (station log per FCC Part 97 recommendations).
+  bool fccLogEnabled = false;
+  String? fccLogPath;
+
   Map<String, Object?> toJson() => {
         'width': width.name,
         'modulation': modulation.name,
@@ -49,6 +54,8 @@ class AppConfig {
         'inputDeviceLabel': inputDeviceLabel,
         'outputDeviceName': outputDeviceName,
         'lastDir': lastDir,
+        'fccLogEnabled': fccLogEnabled,
+        'fccLogPath': fccLogPath,
       };
 
   static AppConfig fromJson(Map<String, Object?> j) {
@@ -72,8 +79,35 @@ class AppConfig {
     c.inputDeviceLabel = (j['inputDeviceLabel'] as String?) ?? '';
     c.outputDeviceName = j['outputDeviceName'] as String?;
     c.lastDir = j['lastDir'] as String?;
+    c.fccLogEnabled = (j['fccLogEnabled'] as bool?) ?? false;
+    c.fccLogPath = j['fccLogPath'] as String?;
     return c;
   }
+}
+
+/// One FCC-log line: direction, UTC date and time, sender, recipient,
+/// bandwidth, modulation format (OFDM-<subcarriers>), LDPC rate, content.
+String formatFccLogLine({
+  required bool tx,
+  required DateTime whenUtc,
+  required String from,
+  required String to,
+  required ChannelWidth width,
+  required LdpcRate rate,
+  required String content,
+}) {
+  String two(int v) => v.toString().padLeft(2, '0');
+  final d = whenUtc;
+  final bw = switch (width) {
+    ChannelWidth.hf => '2.8kHz',
+    ChannelWidth.narrow => '12kHz',
+    ChannelWidth.wide => '24kHz',
+  };
+  final carriers = ModemParams(width: width).activeCarriers;
+  return '${tx ? 'Tx' : 'Rx'} '
+      '${d.year}-${two(d.month)}-${two(d.day)} '
+      '${two(d.hour)}:${two(d.minute)}:${two(d.second)}Z '
+      '$from $to $bw OFDM-$carriers LDPC-${rate.label} $content';
 }
 
 class ChatLine {
@@ -263,6 +297,109 @@ class ModemService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ------------------------------ FCC Logging -----------------------------
+  //
+  // When enabled, every transmission and reception is appended as one line
+  // to the chosen log file (FCC Part 97 station-log recommendation).
+
+  void setFccLogging({bool? enabled, String? path}) {
+    if (enabled != null) config.fccLogEnabled = enabled;
+    if (path != null) config.fccLogPath = path;
+    onPersistConfig?.call();
+    notifyListeners();
+  }
+
+  void _fccWrite({
+    required bool tx,
+    required String from,
+    required String to,
+    required LdpcRate rate,
+    required String content,
+  }) {
+    if (!config.fccLogEnabled) return;
+    final path = config.fccLogPath;
+    if (path == null || path.isEmpty) return;
+    try {
+      final line = formatFccLogLine(
+        tx: tx,
+        whenUtc: DateTime.now().toUtc(),
+        from: from,
+        to: to,
+        width: config.width,
+        rate: rate,
+        content: content,
+      );
+      File(path).writeAsStringSync('$line\n',
+          mode: FileMode.append, flush: true);
+    } catch (e) {
+      _addLog('FCC log write failed: $e');
+    }
+  }
+
+  /// Human-readable one-line summary of a burst payload's packets.
+  static String summarizePayload(Uint8List payload) {
+    String q(String s) =>
+        '"${s.replaceAll('"', r'\"').replaceAll('\n', r'\n')}"';
+    final parts = <String>[];
+    var chunks = 0;
+    for (final p in Pkt.parseAll(payload)) {
+      switch (p.type) {
+        case PktType.msg:
+          final (_, text) = parseMsg(p);
+          parts.add('MSG ${q(text)}');
+        case PktType.msgAck:
+          parts.add('MSG_ACK');
+        case PktType.fileMeta:
+          final m = FileMetaPkt.fromPkt(p);
+          parts.add('FILE ${q(m.name)} (${m.size} B, ${m.chunkCount} chunks)');
+        case PktType.fileData:
+          chunks++;
+        case PktType.fileNak:
+          parts.add('NAK ${FileNak.parse(p).missing.length} missing');
+        case PktType.fileDone:
+          parts.add('FILE_DONE');
+        case PktType.fileReq:
+          final (_, name) = parseFileReq(p);
+          parts.add('FILE_REQ ${q(name)}');
+        case PktType.fileReqNak:
+          parts.add('FILE_REQ_NAK');
+        case PktType.listReq:
+          parts.add('LIST_REQ');
+        case PktType.listResp:
+          parts.add('LIST_RESP');
+        case PktType.beacon:
+          parts.add('BEACON ${q(parseBeacon(p))}');
+      }
+    }
+    if (chunks > 0) parts.add('FILE_DATA x$chunks');
+    return parts.isEmpty ? '(no payload)' : parts.join('; ');
+  }
+
+  /// Summary for a received burst (parses runs of good blocks, notes
+  /// losses).
+  static String summarizeBlocks(List<Uint8List?> blocks, int blockErrors) {
+    if (blocks.isEmpty) return '(header only)';
+    final parts = <String>[];
+    final run = BytesBuilder();
+    void flush() {
+      if (run.length == 0) return;
+      final s = summarizePayload(run.takeBytes());
+      if (s != '(no payload)') parts.add(s);
+    }
+
+    for (final b in blocks) {
+      if (b == null) {
+        flush();
+      } else {
+        run.add(b);
+      }
+    }
+    flush();
+    var out = parts.isEmpty ? '(no payload)' : parts.join('; ');
+    if (blockErrors > 0) out += ' [$blockErrors block(s) lost]';
+    return out;
+  }
+
   // --------------------------- PCM file capture ---------------------------
   //
   // Offline-analysis support: transmitted bursts can be appended to a raw
@@ -380,6 +517,13 @@ class ModemService extends ChangeNotifier {
     notifyListeners();
     try {
       await audio.playBurst(wave);
+      _fccWrite(
+        tx: true,
+        from: config.myCall,
+        to: dst,
+        rate: config.ldpcRate,
+        content: summarizePayload(payload),
+      );
     } finally {
       transmitting = false;
       _rx?.muted = false;
@@ -393,6 +537,13 @@ class ModemService extends ChangeNotifier {
   void _onBurst(ReceivedBurst b) {
     final cc = _rx?.lastConstellation;
     if (cc != null) lastConstellation = cc;
+    _fccWrite(
+      tx: false,
+      from: b.header.srcCall,
+      to: b.header.dstCall,
+      rate: b.header.rate,
+      content: summarizeBlocks(b.blocks, b.blockErrors),
+    );
     _link?.onBurstReceived(b);
     notifyListeners();
   }

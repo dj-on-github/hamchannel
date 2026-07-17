@@ -263,6 +263,35 @@ class _ChannelTabState extends State<ChannelTab> {
                     onChanged: (v) => setState(() => cfg.useLoopback = v),
                   ),
                   const SizedBox(height: 16),
+                  Text('FCC Logging',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  SwitchListTile(
+                    title: const Text('Enable FCC logging'),
+                    subtitle: const Text(
+                        'Appends one line per transmission and reception '
+                        '(Tx/Rx, UTC date & time, callsigns, bandwidth, '
+                        'OFDM subcarriers, LDPC rate, content) — a station '
+                        'log per FCC Part 97 recommendations.'),
+                    value: cfg.fccLogEnabled,
+                    onChanged: (v) => _toggleFccLog(s, v),
+                  ),
+                  Row(children: [
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        cfg.fccLogPath ?? 'No log file selected',
+                        style: const TextStyle(fontFamily: 'monospace'),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _pickFccLog(s),
+                      icon: const Icon(Icons.edit_note),
+                      label: const Text('Choose log file…'),
+                    ),
+                  ]),
+                  const SizedBox(height: 16),
                   Text('Link', style: Theme.of(context).textTheme.titleLarge),
                   Row(children: [
                     Expanded(
@@ -308,6 +337,28 @@ class _ChannelTabState extends State<ChannelTab> {
         );
       },
     );
+  }
+
+  Future<void> _pickFccLog(ModemService s) async {
+    final path = await FilePicker.platform.saveFile(
+      dialogTitle: 'FCC log file',
+      fileName: 'hamchannel_fcc_log.txt',
+      initialDirectory: s.lastDir,
+    );
+    if (path != null) {
+      s.rememberDir(path);
+      s.setFccLogging(path: path);
+    }
+  }
+
+  Future<void> _toggleFccLog(ModemService s, bool v) async {
+    if (v && (s.config.fccLogPath == null || s.config.fccLogPath!.isEmpty)) {
+      // Need a file before logging can start.
+      await _pickFccLog(s);
+      if (s.config.fccLogPath == null) return; // picker cancelled
+    }
+    s.setFccLogging(enabled: v);
+    setState(() {});
   }
 
   Future<void> _pickPcmOut(ModemService s) async {

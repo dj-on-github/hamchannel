@@ -1,5 +1,7 @@
 # HamChannel
 
+![alt text](hamchannel_icon.svg "Ham Channel Icon")
+
 An OFDM soundcard data modem for VHF/UHF FM ham radios, built in Flutter for
 desktop (macOS / Linux / Windows). It sends text messages and files between
 two stations using the laptop's headphone and microphone jacks wired to the
@@ -62,9 +64,27 @@ search.
    the last received transmission, with SNR and EVM statistics (RMS, max,
    standard deviation). Capture is off by default; enable it with the
    switch at the top of the tab.
-5. **Settings** — channel width (narrow/wide), subcarrier modulation, LDPC
-   rate, callsigns, audio input/output device selection, TX level, VOX
-   leader length, PCM capture, loopback test mode.
+5. **Settings** — channel width (HF/narrow/wide), subcarrier modulation,
+   LDPC rate, callsigns, audio input/output device selection, TX level,
+   VOX leader length, PCM capture, FCC Logging, loopback test mode.
+
+## FCC Logging
+
+FCC Part 97 does not generally require a station log, but keeping one that
+can be produced on request is a long-standing recommendation. Enable **FCC
+Logging** in the Settings tab, choose a log file (remembered across
+restarts), and the app appends one line for every transmission and
+reception:
+
+```
+Tx 2026-07-15 21:04:03Z W1AW KD2XYZ 12kHz OFDM-240 LDPC-1/2 MSG "hello"
+Rx 2026-07-15 21:04:11Z KD2XYZ W1AW 12kHz OFDM-240 LDPC-1/2 MSG_ACK
+```
+
+Fields: direction (Tx/Rx), UTC date and time, sender callsign, recipient
+callsign, channel bandwidth, modulation format (`OFDM-<subcarriers>`),
+LDPC code rate, and the content (message text, or a summary of file
+transfer / control packets).
 
 ## Radio wiring (VOX keying)
 

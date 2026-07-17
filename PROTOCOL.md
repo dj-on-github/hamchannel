@@ -1,5 +1,7 @@
 # HamChannel On-Air Protocol Specification
 
+![alt text](hamchannel_icon.svg "Ham Channel Icon")
+
 **Version 2 · protocol as implemented in `lib/dsp`, `lib/fec`, `lib/modem`, `lib/proto`**
 *(v2 adds PRBS scrambling of all LDPC info bytes; v1 receivers reject v2
 bursts at the header check and vice versa.)*
