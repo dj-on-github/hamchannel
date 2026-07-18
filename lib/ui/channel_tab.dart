@@ -187,6 +187,17 @@ class _ChannelTabState extends State<ChannelTab> {
                                   CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.refresh),
                     ),
+                    IconButton(
+                      tooltip: 'Play a test tone on the selected output',
+                      onPressed: s.audioTesting ? null : s.audioSelfTest,
+                      icon: s.audioTesting
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child:
+                                  CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.volume_up),
+                    ),
                   ]),
                   const SizedBox(height: 8),
                   Row(children: [

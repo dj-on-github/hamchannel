@@ -4,6 +4,7 @@ library;
 
 import 'dart:async';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
@@ -195,6 +196,71 @@ class ModemService extends ChangeNotifier {
       notifyListeners();
     }
   }
+  /// True while the one-click audio self-test tone is playing.
+  bool audioTesting = false;
+
+  /// Play a short 1 kHz test tone through the selected output device so
+  /// audio routing can be verified with one click. Uses the running
+  /// backend when the modem is up; otherwise starts a temporary
+  /// output-only backend with the current output selection.
+  Future<void> audioSelfTest() async {
+    if (audioTesting) return;
+    audioTesting = true;
+    notifyListeners();
+    try {
+      final tone = _buildTestTone();
+      if (running && _audio != null) {
+        if (config.useLoopback) {
+          _addLog('loopback mode: the test tone is not sent to a speaker');
+        } else {
+          _addLog('playing test tone on the current output');
+          await _audio!.playBurst(tone);
+        }
+      } else {
+        if (config.useLoopback) {
+          _addLog('loopback mode: the test tone is not sent to a speaker');
+          return;
+        }
+        _addLog('playing test tone on the selected output');
+        final backend =
+            RealAudioBackend(outputDeviceName: config.outputDeviceName);
+        try {
+          await backend.start(capture: false);
+          await backend.playBurst(tone);
+          if (backend.lastError != null) {
+            _addLog('audio: ${backend.lastError}');
+          }
+        } finally {
+          await backend.stop();
+        }
+      }
+    } catch (e) {
+      _addLog('audio self-test failed: $e');
+    } finally {
+      audioTesting = false;
+      notifyListeners();
+    }
+  }
+
+  /// 0.75 s of 1 kHz sine at 50% amplitude with 10 ms raised-cosine
+  /// edges (click-free), 48 kHz mono floats like the modem bursts.
+  static Float64List _buildTestTone() {
+    const sr = ModemParams.sampleRate;
+    final n = sr * 3 ~/ 4;
+    final ramp = sr ~/ 100;
+    final out = Float64List(n);
+    for (var i = 0; i < n; i++) {
+      var env = 1.0;
+      if (i < ramp) {
+        env = 0.5 - 0.5 * cos(pi * i / ramp);
+      } else if (i >= n - ramp) {
+        env = 0.5 - 0.5 * cos(pi * (n - i) / ramp);
+      }
+      out[i] = 0.5 * env * sin(2 * pi * 1000 * i / sr);
+    }
+    return out;
+  }
+
   double get rxLevel => _rx?.rxRms ?? 0;
   double get lastSnrDb => _rx?.lastSnrDb ?? 0;
   RxState get rxState => _rx?.state ?? RxState.searching;

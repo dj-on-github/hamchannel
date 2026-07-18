@@ -461,7 +461,7 @@ class RealAudioBackend implements AudioBackend {
   }
 
   @override
-  Future<void> start() async {
+  Future<void> start({bool capture = true}) async {
     if (_started) return;
 
     // --- Linux jack/port selection (mic vs line-in, phones vs line-out) ---
@@ -526,6 +526,11 @@ class RealAudioBackend implements AudioBackend {
     }
 
     // --- capture ---
+    if (!capture) {
+      // Output-only use (audio self-test): skip opening the microphone.
+      _started = true;
+      return;
+    }
     if (!await _rec.hasPermission()) {
       throw StateError('Microphone permission denied');
     }
