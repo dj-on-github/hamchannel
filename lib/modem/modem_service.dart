@@ -185,6 +185,9 @@ class ModemService extends ChangeNotifier {
       final lists = await RealAudioBackend.enumerateDevices();
       inputDevices = lists.inputs;
       outputDevices = lists.outputs;
+      if (RealAudioBackend.enumerationNote.isNotEmpty) {
+        _addLog('audio devices: ${RealAudioBackend.enumerationNote}');
+      }
     } catch (e) {
       _addLog('audio device enumeration failed: $e');
     } finally {
@@ -225,6 +228,11 @@ class ModemService extends ChangeNotifier {
       );
       _linkSub = _link!.events.listen(_onLinkEvent);
       await _audio!.start();
+      final audioBackend = _audio;
+      if (audioBackend is RealAudioBackend &&
+          audioBackend.lastError != null) {
+        _addLog('audio: ${audioBackend.lastError}');
+      }
       _rxSub = _audio!.rx.listen((chunk) {
         _rx?.addSamples(chunk);
         notifyListeners();
@@ -235,6 +243,7 @@ class ModemService extends ChangeNotifier {
           '${(netBitRate / 1000).toStringAsFixed(1)} kbit/s)';
     } catch (e) {
       lastError = 'start failed: $e';
+      _addLog(lastError);
       statusLine = 'error';
       await stop();
     }

@@ -252,8 +252,10 @@ class RealAudioBackend implements AudioBackend {
         lastError = 'set-card-profile: ${'${r.stderr}'.trim()}';
         return null;
       }
-      for (var attempt = 0; attempt < 10; attempt++) {
-        await Future<void>.delayed(const Duration(milliseconds: 150));
+      // WirePlumber can take a while to re-probe the card after a profile
+      // switch; wait up to 6 s for the new sink to appear.
+      for (var attempt = 0; attempt < 24; attempt++) {
+        await Future<void>.delayed(const Duration(milliseconds: 250));
         final snk =
             await Process.run('pactl', ['--format=json', 'list', 'sinks']);
         if (snk.exitCode != 0) continue;
@@ -268,7 +270,6 @@ class RealAudioBackend implements AudioBackend {
           final sinkName = m['name'] as String? ?? '';
           await Process.run(
               'pactl', ['set-sink-port', sinkName, portName]);
-          await _setDefaultSink(sinkName);
           return m['description'] as String? ?? sinkName;
         }
       }
@@ -279,68 +280,167 @@ class RealAudioBackend implements AudioBackend {
     return null;
   }
 
+  /// Diagnostics from the last [enumerateDevices] call: which enumeration
+  /// path was used and why it fell back to a poorer one. Surfaced in the
+  /// app log so Linux audio problems are visible to the user.
+  static String enumerationNote = '';
+
   /// Enumerate capture and playback devices. Safe to call while the modem
-  /// is stopped; initializes the playback engine temporarily if needed.
+  /// is stopped.
   static Future<AudioDeviceLists> enumerateDevices() async {
+    enumerationNote = '';
     if (Platform.isLinux) {
       // Port-aware enumeration so line-in/line-out jacks are selectable.
       final pulse = await _enumeratePulsePorts();
       if (pulse != null) return pulse;
+      // Older pactl (< 15.0) has no --format=json; parse the text output
+      // instead so jacks/ports stay individually selectable.
+      final text = await _enumeratePulseText();
+      if (text != null) {
+        enumerationNote =
+            'pactl JSON mode unavailable; used text-mode parsing.';
+        return text;
+      }
+      enumerationNote = 'pactl enumeration failed; using plugin fallback '
+          '(no per-jack entries — is pulseaudio-utils installed?)';
     }
+    // Last-resort plugin enumeration (no port/jack granularity).
     final inputs = <AudioDeviceInfo>[];
     final outputs = <AudioDeviceInfo>[];
     final rec = AudioRecorder();
     try {
       for (final d in await rec.listInputDevices()) {
-        inputs.add(AudioDeviceInfo(id: d.id, label: d.label));
+        // record_linux leaves the surrounding quotes of node.name in the
+        // device id; strip them so the id is accepted by parecord again.
+        inputs.add(
+            AudioDeviceInfo(id: d.id.replaceAll('"', ''), label: d.label));
       }
     } catch (_) {
       // Leave the list empty; UI falls back to "System default".
     } finally {
       await rec.dispose();
     }
-    final so = SoLoud.instance;
-    final wasInited = so.isInitialized;
     try {
-      if (!wasInited) {
-        await so.init(sampleRate: sampleRate, channels: Channels.stereo);
-      }
-      for (final d in so.listPlaybackDevices()) {
+      // listPlaybackDevices creates its own miniaudio context, so the
+      // engine does not need to be (temporarily) initialized for this.
+      for (final d in SoLoud.instance.listPlaybackDevices()) {
         outputs.add(AudioDeviceInfo(
           id: d.name,
           label: d.isDefault ? '${d.name} (default)' : d.name,
         ));
       }
-      if (!wasInited) so.deinit();
     } catch (_) {}
     return AudioDeviceLists(inputs: inputs, outputs: outputs);
   }
 
-  /// Previous default sink, restored on [stop] after we changed it.
-  String? _prevDefaultSink;
-
-  /// Make [sinkName] the default sink so playback follows it. This is the
-  /// reliable way to route output on Linux: the playback engine's device
-  /// naming depends on which miniaudio backend it picked (ALSA vs Pulse),
-  /// but PipeWire/Pulse reroutes default-targeting streams immediately
-  /// when the default sink changes.
-  Future<void> _setDefaultSink(String sinkName) async {
+  /// Text-mode fallback for [_enumeratePulsePorts], parsing
+  /// `pactl list sources` / `pactl list sinks` (LC_ALL=C). Produces the
+  /// same id encoding as the JSON path, so [start] works unchanged.
+  static Future<AudioDeviceLists?> _enumeratePulseText() async {
     try {
-      final cur = await Process.run('pactl', ['get-default-sink']);
-      if (cur.exitCode == 0) {
-        final name = '${cur.stdout}'.trim();
-        if (name.isNotEmpty && name != sinkName) {
-          _prevDefaultSink ??= name;
+      final src = await Process.run('pactl', ['list', 'sources'],
+          environment: {'LC_ALL': 'C'});
+      final snk = await Process.run('pactl', ['list', 'sinks'],
+          environment: {'LC_ALL': 'C'});
+      if (src.exitCode != 0 || snk.exitCode != 0) return null;
+
+      final portRe = RegExp(r'^([A-Za-z0-9._+\-]+): (.*) \(type: ');
+
+      // Parses one pactl list output. Returns the device entries plus the
+      // set of port names seen (the port set is only used for sinks, to
+      // drive the card-level output scan below).
+      (List<AudioDeviceInfo>, Set<String>) parse(String text,
+          {required bool isSink}) {
+        final out = <AudioDeviceInfo>[];
+        final portNames = <String>{};
+        var name = '';
+        var desc = '';
+        final ports = <(String, String)>[];
+        var inPorts = false;
+
+        void flush() {
+          final n = name;
+          final d = desc.isEmpty ? name : desc;
+          final ps = List<(String, String)>.from(ports);
+          name = '';
+          desc = '';
+          ports.clear();
+          inPorts = false;
+          if (n.isEmpty) return;
+          if (!isSink && n.endsWith('.monitor')) return;
+          if (ps.length <= 1) {
+            out.add(AudioDeviceInfo(
+              id: isSink ? '$n$portSep$portSep$d' : n,
+              label: d,
+            ));
+          } else {
+            for (final p in ps) {
+              out.add(AudioDeviceInfo(
+                id: isSink
+                    ? '$n$portSep${p.$1}$portSep$d'
+                    : '$n$portSep${p.$1}',
+                label: '$d — ${p.$2}',
+              ));
+            }
+          }
         }
+
+        for (final raw in text.split('\n')) {
+          final line = raw.trim();
+          if (line.startsWith('Source #') || line.startsWith('Sink #')) {
+            flush();
+          } else if (line.startsWith('Name: ')) {
+            name = line.substring(6).trim();
+          } else if (line.startsWith('Description: ')) {
+            desc = line.substring(13).trim();
+          } else if (line == 'Ports:') {
+            inPorts = true;
+          } else if (line.startsWith('Active Port:')) {
+            inPorts = false;
+          } else if (inPorts) {
+            final m = portRe.firstMatch(line);
+            if (m != null) {
+              ports.add((m.group(1)!, m.group(2)!));
+              portNames.add(m.group(1)!);
+            }
+          }
+        }
+        flush();
+        return (out, portNames);
       }
-      final r =
-          await Process.run('pactl', ['set-default-sink', sinkName]);
-      if (r.exitCode != 0) {
-        lastError = 'set-default-sink: ${'${r.stderr}'.trim()}';
+
+      final inputs = parse('${src.stdout}', isSink: false).$1;
+      final sinkResult = parse('${snk.stdout}', isSink: true);
+      final outputs = sinkResult.$1;
+
+      // Card-level output ports that exist only under a different card
+      // profile (same treatment as the JSON path).
+      try {
+        outputs.addAll(await _cardOutputPortsFromText(sinkResult.$2));
+      } catch (_) {
+        // Card enumeration is best-effort; sinks alone still work.
       }
-    } catch (e) {
-      lastError = 'set-default-sink failed: $e';
+
+      if (inputs.isEmpty && outputs.isEmpty) return null;
+      return AudioDeviceLists(inputs: inputs, outputs: outputs);
+    } catch (_) {
+      return null;
     }
+  }
+
+  /// Find the playback device whose Pulse/PipeWire sink description is
+  /// [desc]: exact match first, then a unique prefix match (miniaudio and
+  /// pactl occasionally disagree by trailing characters). Returns null
+  /// when the description is absent or ambiguous.
+  static PlaybackDevice? _findPlaybackDevice(
+      List<PlaybackDevice> devs, String desc) {
+    for (final d in devs) {
+      if (d.name == desc) return d;
+    }
+    final approx = devs
+        .where((d) => d.name.startsWith(desc) || desc.startsWith(d.name))
+        .toList();
+    return approx.length == 1 ? approx.first : null;
   }
 
   /// Switch a Pulse device to the requested port ([setCmd] is
@@ -375,13 +475,17 @@ class RealAudioBackend implements AudioBackend {
       if (outName != null && outName.startsWith('card:')) {
         // Port only exists under a different card profile: switch it.
         final parts = outName.substring(5).split(portSep);
-        outName = parts.length > 2
-            ? await _activateCardOutput(parts[0], parts[1], parts[2])
-            : null;
+        if (parts.length > 2) {
+          outName = await _activateCardOutput(parts[0], parts[1], parts[2]);
+          if (outName == null) {
+            throw StateError(lastError ??
+                'could not activate the selected card output');
+          }
+        } else {
+          outName = null;
+        }
       } else if (outName != null && outName.contains(portSep)) {
         final parts = await _applyPulsePort(outName, 'set-sink-port');
-        // Route playback to the chosen sink (streams follow the default).
-        await _setDefaultSink(parts[0]);
         // The playback engine (miniaudio) names Pulse devices by their
         // description, carried as the third encoded part.
         outName = parts.length > 2 && parts[2].isNotEmpty ? parts[2] : null;
@@ -392,22 +496,33 @@ class RealAudioBackend implements AudioBackend {
     // The engine runs stereo and the burst is duplicated onto both
     // channels, so left and right always carry the identical signal
     // regardless of how the device/OS would up-mix mono.
+    //
+    // The selected sink is opened directly (miniaudio's PulseAudio backend
+    // names devices by sink description, so the description carried in the
+    // selection id identifies it). The system default sink is deliberately
+    // left untouched: rerouting it is global to the whole desktop, races
+    // with PipeWire's asynchronous default handling, and stays behind if
+    // the app crashes.
     final so = SoLoud.instance;
-    if (!so.isInitialized) {
-      await so.init(sampleRate: sampleRate, channels: Channels.stereo);
-    }
+    PlaybackDevice? selected;
     if (outName != null) {
-      try {
-        final devs = so.listPlaybackDevices();
-        for (final d in devs) {
-          if (d.name == outName) {
-            so.changeDevice(newDevice: d);
-            break;
-          }
-        }
-      } catch (e) {
-        lastError = 'output device select failed: $e';
+      // listPlaybackDevices uses its own miniaudio context and works
+      // while the engine is stopped.
+      final devs = so.listPlaybackDevices();
+      selected = _findPlaybackDevice(devs, outName);
+      if (selected == null) {
+        throw StateError('selected output "$outName" not found among the '
+            '${devs.length} playback device(s); re-scan the audio devices '
+            'in Settings and pick the output again');
       }
+    }
+    if (!so.isInitialized) {
+      await so.init(
+          sampleRate: sampleRate,
+          channels: Channels.stereo,
+          device: selected);
+    } else if (selected != null) {
+      so.changeDevice(newDevice: selected);
     }
 
     // --- capture ---
@@ -508,14 +623,6 @@ class RealAudioBackend implements AudioBackend {
       final so = SoLoud.instance;
       if (so.isInitialized) so.deinit();
     } catch (_) {}
-    // Restore the system default sink if we changed it.
-    final prev = _prevDefaultSink;
-    _prevDefaultSink = null;
-    if (prev != null && Platform.isLinux) {
-      try {
-        await Process.run('pactl', ['set-default-sink', prev]);
-      } catch (_) {}
-    }
     _started = false;
   }
 }

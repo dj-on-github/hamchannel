@@ -25,8 +25,10 @@ class _ChannelTabState extends State<ChannelTab> {
   @override
   void initState() {
     super.initState();
-    // Populate the audio device pulldowns once on first open.
-    if (widget.service.inputDevices.isEmpty &&
+    // Populate the audio device pulldowns once on first open. Re-run when
+    // either list is empty: a partial enumeration (e.g. transient pactl or
+    // plugin failure, or a device plugged in later) must not stick.
+    if (widget.service.inputDevices.isEmpty ||
         widget.service.outputDevices.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.service.refreshAudioDevices();
