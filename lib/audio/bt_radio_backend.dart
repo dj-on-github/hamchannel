@@ -13,9 +13,10 @@
 ///  * 0x7e-delimited frames, 0x7d escape (next byte XOR 0x20);
 ///  * first byte = command: 0x00/0x03 received SBC audio, 0x01 audio end,
 ///    0x02 ack, 0x09 transmit echo; transmit frames use command 0x00;
-///  * SBC: 32 kHz, mono, 16 blocks, 8 subbands, bitpool 40, loudness bit
-///    allocation (the HTCommander-proven configuration; some radio firmware
-///    mis-decodes SNR-allocated frames);
+///  * SBC: 32 kHz, mono, 16 blocks, 8 subbands, bitpool 18, loudness bit
+///    allocation — the radio firmware's native/default format (some radio
+///    firmware mis-decodes SNR-allocated frames; bitpool 18 halves BT
+///    airtime vs 40, easing 2.4 GHz coexistence);
 ///  * a fixed end-frame tells the radio to stop transmitting.
 ///
 /// The modem runs at 48 kHz; this backend resamples 48↔32 kHz (2/3 ratio).
@@ -186,13 +187,17 @@ class BtRadioAudioBackend implements AudioBackend {
     // Loudness, NOT snr: although SNR allocation is theoretically better for
     // a modem waveform (and is what HTCommander's DART mode selects), some
     // radio firmware decodes SNR-allocated frames incorrectly, producing
-    // heavily distorted transmit audio. Loudness at bitpool 40 is the
-    // configuration proven clean over the air by HTCommander voice, and the
-    // radios' own encoders use it for the receive direction — measured good
-    // enough for the OFDM profiles that fit the Bluetooth path.
+    // heavily distorted transmit audio.
     ..allocationMethod = SbcBitAllocationMethod.loudness
     ..subbands = 8
-    ..bitpool = 40;
+    // Bitpool 18 — the radio firmware's own default and what its encoder
+    // uses for the receive direction (measured 13+ dB SNR through it, ample
+    // for BPSK/QPSK). Halving the frame size vs bitpool 40 also halves our
+    // Bluetooth airtime, leaving headroom for RFCOMM retransmissions on a
+    // congested 2.4 GHz link (Wi-Fi/BT coexistence, other BT devices) —
+    // link congestion gaps are a prime suspect for transmit stutter on
+    // macOS. Raise cautiously only on a clean link.
+    ..bitpool = 18;
 
   void _log(String s) => onLog?.call('[BT radio] $s');
 

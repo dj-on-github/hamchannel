@@ -649,10 +649,15 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
         return buffer
     }
 
-    /// Audio-channel write with backpressure: the FlutterResult is answered
-    /// from rfcommChannelWriteComplete, so the Dart `await` returns only once
-    /// the bytes have actually gone to the link — never faster than the radio
-    /// accepts them.
+    /// Audio-channel write, fire-and-forget like HTCommander's field-proven
+    /// path: reply true as soon as writeAsync queues the data. IOBluetooth's
+    /// internal queue + RFCOMM flow control then keep the link streaming
+    /// CONTINUOUSLY; pacing is the Dart side's job (wall-clock lead). Gating
+    /// the reply on rfcommChannelWriteComplete was tried and made things
+    /// worse: completions arrive in clumps, which serialized the writes into
+    /// burst-gap-burst delivery and stuttered the radio's playout. The one
+    /// real defect in the original code — the transient buffer — stays fixed:
+    /// the write goes out from a malloc'd copy freed on write completion.
     private func sendAudio(address: String, data: Data, result: @escaping FlutterResult) {
         let normalizedAddress = address.uppercased().replacingOccurrences(of: ":", with: "-")
         guard let connection = audioConnections[normalizedAddress] else {
@@ -664,20 +669,8 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
             return
         }
         nextWriteId += 1
-        let writeId = nextWriteId
-        pendingWrites.append(PendingWrite(id: writeId, buffer: buffer, result: result))
-        // Safety net: if the completion is lost (e.g. the channel dies with
-        // the write queued), answer false after 5 s so Dart never hangs.
-        // Matched by unique id — NEVER by buffer address (see PendingWrite).
-        // The buffer is NOT freed here — it may still be referenced by the
-        // queue; rfcommChannelClosed/writeComplete remain responsible for it.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
-            guard let self = self else { return }
-            if let idx = self.pendingWrites.firstIndex(where: { $0.id == writeId }) {
-                let pending = self.pendingWrites.remove(at: idx)
-                pending.result?(false)
-            }
-        }
+        pendingWrites.append(PendingWrite(id: nextWriteId, buffer: buffer, result: nil))
+        result(true)
     }
 
     private func send(address: String, data: Data) -> Bool {

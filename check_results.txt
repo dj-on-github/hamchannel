@@ -68,16 +68,16 @@ warning • The '!' will have no effect because the receiver can't be null. Try 
 warning • The '!' will have no effect because the receiver can't be null. Try removing the '!' operator • tools/src/hc_view.dart:130:18 • unnecessary_non_null_assertion
 warning • The '!' will have no effect because the receiver can't be null. Try removing the '!' operator • tools/src/hc_view.dart:146:15 • unnecessary_non_null_assertion
 
-31 issues found. (ran in 3.4s)
+31 issues found. (ran in 3.3s)
 
 === test ===
 00:00 +0: loading /Users/dj/src/hamchannel/test/fft_test.dart
 00:00 +0: /Users/dj/src/hamchannel/test/fft_test.dart: FFT of a pure tone concentrates energy in one bin
 00:00 +1: /Users/dj/src/hamchannel/test/fcc_log_test.dart: formatFccLogLine has all required fields in order
-00:00 +2: /Users/dj/src/hamchannel/test/fft_test.dart: inverse(forward(x)) == x
-00:00 +3: /Users/dj/src/hamchannel/test/fcc_log_test.dart: summarizePayload describes packets
-00:00 +4: /Users/dj/src/hamchannel/test/fcc_log_test.dart: summarizePayload describes packets
-00:00 +5: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
+00:00 +2: /Users/dj/src/hamchannel/test/bt_audio_test.dart: BtAudioFraming escape/unescape round-trips, including 0x7d/0x7e bytes
+00:00 +3: /Users/dj/src/hamchannel/test/bt_audio_test.dart: BtAudioFraming escape/unescape round-trips, including 0x7d/0x7e bytes
+00:00 +4: /Users/dj/src/hamchannel/test/bt_audio_test.dart: BtAudioFraming escape/unescape round-trips, including 0x7d/0x7e bytes
+00:00 +5: /Users/dj/src/hamchannel/test/bt_audio_test.dart: BtAudioFraming escape/unescape round-trips, including 0x7d/0x7e bytes
 00:00 +6: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
 00:00 +7: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
 00:00 +8: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
@@ -85,8 +85,8 @@ warning • The '!' will have no effect because the receiver can't be null. Try 
 00:00 +10: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
 00:00 +11: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
 00:00 +12: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
-00:00 +13: /Users/dj/src/hamchannel/test/pcm_file_test.dart: TX capture to f64le PCM file replays into another receiver
-00:00 +14: /Users/dj/src/hamchannel/test/bt_audio_test.dart: modem burst through the Bluetooth audio chain HF 2.8 kHz QPSK r1/2 survives the SBC codec
+00:00 +13: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
+00:00 +14: /Users/dj/src/hamchannel/test/fcc_log_test.dart: Tx and Rx lines are written through the loopback modem
 00:00 +15: /Users/dj/src/hamchannel/test/bt_audio_test.dart: modem burst through the Bluetooth audio chain HF 2.8 kHz QPSK r1/2 survives the SBC codec
 00:00 +16: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel
 00:00 +17: /Users/dj/src/hamchannel/test/protocol_test.dart: file transfer completes over a clean channel

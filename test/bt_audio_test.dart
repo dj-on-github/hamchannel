@@ -19,14 +19,14 @@ import 'package:hamchannel/sbc/sbc_enums.dart';
 import 'package:hamchannel/sbc/sbc_frame.dart';
 
 /// Encoder configuration used by the backend (32 kHz mono modem waveform;
-/// loudness allocation — see BtRadioAudioBackend for why not snr).
+/// loudness allocation, bitpool 18 — see BtRadioAudioBackend for why).
 SbcFrame btEncoderFrame() => SbcFrame()
   ..frequency = SbcFrequency.freq32K
   ..blocks = 16
   ..mode = SbcMode.mono
   ..allocationMethod = SbcBitAllocationMethod.loudness
   ..subbands = 8
-  ..bitpool = 40;
+  ..bitpool = 18;
 
 /// PCM samples consumed per SBC frame (blocks × subbands).
 const int samplesPerSbcFrame = 16 * 8;
@@ -194,7 +194,9 @@ void main() {
         err += e.toDouble() * e;
       }
       final snrDb = 10 * math.log(sig / err) / math.ln10;
-      expect(snrDb, greaterThan(15),
+      // Bitpool 18 is coarser than 40; ~10+ dB is expected and sufficient
+      // (the full modem-chain tests below are the real gate).
+      expect(snrDb, greaterThan(10),
           reason: 'SBC round-trip SNR was ${snrDb.toStringAsFixed(1)} dB');
     });
   });
