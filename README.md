@@ -166,6 +166,10 @@ development packages at build time:
 sudo apt install libbluetooth-dev libglib2.0-dev
 ```
 
+Note the `bluez` package alone is **not** enough — it only contains the
+daemon and tools. The headers and `bluez.pc` file CMake looks for are in
+`libbluetooth-dev` (Fedora: `bluez-libs-devel`, Arch: `bluez-libs`).
+
 ## Tests
 
 `./run_checks.sh` (or `flutter test`) runs:

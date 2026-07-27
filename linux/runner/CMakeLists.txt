@@ -21,15 +21,36 @@ apply_standard_settings(${BINARY_NAME})
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 
 # BlueZ (libbluetooth) + GIO for the native Bluetooth Classic (RFCOMM) plugin
-# used by the Bluetooth-radio audio backend (sudo apt install libbluetooth-dev).
+# used by the Bluetooth-radio audio backend.
+#
+# Note: the "bluez" apt package is only the daemon/tools; the headers and
+# bluez.pc pkg-config file come from libbluetooth-dev. Try pkg-config first,
+# then fall back to locating the header/library directly.
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(BLUEZ REQUIRED IMPORTED_TARGET bluez)
+pkg_check_modules(BLUEZ IMPORTED_TARGET bluez)
 pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+
+if(NOT BLUEZ_FOUND)
+  find_path(BLUETOOTH_INCLUDE_DIR bluetooth/bluetooth.h)
+  find_library(BLUETOOTH_LIBRARY bluetooth)
+  if(NOT BLUETOOTH_INCLUDE_DIR OR NOT BLUETOOTH_LIBRARY)
+    message(FATAL_ERROR
+      "BlueZ development files not found. The 'bluez' package is only the "
+      "daemon; the build needs the headers/library:\n"
+      "  sudo apt install libbluetooth-dev\n"
+      "(Fedora: bluez-libs-devel, Arch: bluez-libs)")
+  endif()
+endif()
 
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
-target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::BLUEZ)
+if(BLUEZ_FOUND)
+  target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::BLUEZ)
+else()
+  target_include_directories(${BINARY_NAME} PRIVATE "${BLUETOOTH_INCLUDE_DIR}")
+  target_link_libraries(${BINARY_NAME} PRIVATE "${BLUETOOTH_LIBRARY}")
+endif()
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GIO)
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")
