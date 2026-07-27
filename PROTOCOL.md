@@ -36,6 +36,15 @@ Because an FM audio channel translates no frequencies, the receiver only
 needs to track sound-card sample-clock offset (tens of ppm) and slow phase
 drift; there is no carrier-frequency-offset problem as in RF-coupled OFDM.
 
+The audio path between the host and the radio is outside this
+specification: it may be analog cables to a sound card, or — for Benshi
+family handy-talkies (UV-Pro / GA-5WB / VR-N76) — a Bluetooth Classic
+RFCOMM channel carrying SBC-compressed audio (32 kHz mono, 16 blocks,
+8 subbands, bitpool 40, framed between 0x7E flags with 0x7D escaping, per
+HTCommander's wire format). Either transport carries the same on-air
+waveform; interoperability is unaffected, though the SBC path limits usable
+bandwidth profiles to 12 kHz and below.
+
 ## 2. Deterministic PRNG (`DetRng`)
 
 Both stations derive every shared pseudo-random object (preamble bits, pilot
@@ -630,6 +639,16 @@ and phase; 16-QAM carries 4 bits per carrier, 64-QAM carries 6.
 
 **Raised cosine (ramp)** — The smooth half-cosine amplitude taper applied
 to the first and last 5 ms of a burst to avoid clicks and spectral splatter.
+
+**RFCOMM** — The Bluetooth Classic serial-port protocol. Benshi-family
+handy-talkies expose a vendor RFCOMM channel that carries SBC-compressed
+audio between the host and the radio (see §1); this replaces audio cables
+but does not change the on-air waveform.
+
+**SBC (Subband Codec)** — The low-complexity audio codec used on the
+Bluetooth radio audio path (32 kHz mono, 8 subbands, bitpool 40 here). It
+compresses the modem's waveform in transit to/from the radio; the LDPC
+margin absorbs the small quantization noise it adds.
 
 **Scrambler** — The deterministic XOR of each LDPC info block with a PRBS
 (§3.8), applied before encoding and removed after decoding, which whitens

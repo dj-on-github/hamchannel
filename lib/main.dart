@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'audio/audio_backend.dart';
+import 'audio/bt_classic.dart';
+import 'audio/bt_radio_backend.dart';
 import 'audio/real_audio.dart';
 import 'modem/modem.dart';
 import 'modem/modem_service.dart';
@@ -29,20 +31,29 @@ Future<void> main() async {
   final docs = await getApplicationDocumentsDirectory();
   final base = Directory('${docs.path}/hamchannel');
 
-  final service = ModemService(
+  late final ModemService service;
+  service = ModemService(
     config: config,
-    backendFactory: (cfg) => cfg.useLoopback
-        ? LoopbackAudioBackend()
-        : RealAudioBackend(
-            inputDeviceId: cfg.inputDeviceId,
-            inputDeviceLabel: cfg.inputDeviceLabel,
-            outputDeviceName: cfg.outputDeviceName,
-          ),
+    backendFactory: (cfg) => switch (cfg.audioBackend) {
+      AudioBackendKind.loopback => LoopbackAudioBackend(),
+      AudioBackendKind.bluetoothRadio => BtRadioAudioBackend(
+          macAddress: cfg.btRadioAddress,
+          onLog: (m) => service.addLog(m),
+        ),
+      AudioBackendKind.soundCard => RealAudioBackend(
+          inputDeviceId: cfg.inputDeviceId,
+          inputDeviceLabel: cfg.inputDeviceLabel,
+          outputDeviceName: cfg.outputDeviceName,
+        ),
+    },
     sharedDir: Directory('${base.path}/shared'),
     recvDir: Directory('${base.path}/received'),
     onPersistConfig: () =>
         prefs.setString('config', jsonEncode(config.toJson())),
   );
+
+  // Surface native Bluetooth bridge diagnostics in the in-app log.
+  BluetoothClassicBridge.log = (m) => service.addLog(m);
 
   runApp(HamChannelApp(service: service));
 }

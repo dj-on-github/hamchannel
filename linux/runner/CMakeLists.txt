@@ -9,6 +9,7 @@ project(runner LANGUAGES CXX)
 add_executable(${BINARY_NAME}
   "main.cc"
   "my_application.cc"
+  "bluetooth_classic_plugin.cc"
   "${FLUTTER_MANAGED_DIR}/generated_plugin_registrant.cc"
 )
 
@@ -19,8 +20,16 @@ apply_standard_settings(${BINARY_NAME})
 # Add preprocessor definitions for the application ID.
 add_definitions(-DAPPLICATION_ID="${APPLICATION_ID}")
 
+# BlueZ (libbluetooth) + GIO for the native Bluetooth Classic (RFCOMM) plugin
+# used by the Bluetooth-radio audio backend (sudo apt install libbluetooth-dev).
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(BLUEZ REQUIRED IMPORTED_TARGET bluez)
+pkg_check_modules(GIO REQUIRED IMPORTED_TARGET gio-2.0)
+
 # Add dependency libraries. Add any application-specific dependencies here.
 target_link_libraries(${BINARY_NAME} PRIVATE flutter)
 target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GTK)
+target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::BLUEZ)
+target_link_libraries(${BINARY_NAME} PRIVATE PkgConfig::GIO)
 
 target_include_directories(${BINARY_NAME} PRIVATE "${CMAKE_SOURCE_DIR}")

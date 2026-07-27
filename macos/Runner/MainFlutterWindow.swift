@@ -10,6 +10,11 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // Native Bluetooth Classic (RFCOMM) handler for the Bluetooth-radio
+    // audio backend (code from HTCommander, Apache-2.0, Ylian Saint-Hilaire).
+    BluetoothClassicHandler.register(
+      with: flutterViewController.registrar(forPlugin: "BluetoothClassicHandler"))
+
     super.awakeFromNib()
   }
 }

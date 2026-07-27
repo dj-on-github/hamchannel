@@ -26,6 +26,8 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>HamChannel needs the microphone to receive OFDM data from your radio.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>HamChannel needs Bluetooth to connect to your radio.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

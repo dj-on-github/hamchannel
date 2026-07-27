@@ -8,11 +8,26 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 
 import '../audio/audio_backend.dart';
+import '../audio/bt_classic.dart';
+import '../audio/bt_radio_backend.dart';
 import '../audio/real_audio.dart';
 import '../dsp/modem_params.dart';
 import '../proto/link.dart';
 import '../proto/packets.dart';
 import 'modem.dart';
+
+/// How the modem's audio reaches the radio.
+enum AudioBackendKind {
+  /// Sound card + audio cables (VOX or PTT wiring).
+  soundCard,
+
+  /// Bluetooth handy-talkie (UV-Pro / GA-5WB / VR-N76 family): audio is
+  /// carried over the radio's vendor Bluetooth audio channel, no cables.
+  bluetoothRadio,
+
+  /// TX wired straight back into RX for testing without hardware.
+  loopback,
+}
 
 class AppConfig {
   ChannelWidth width = ChannelWidth.narrow;
@@ -24,7 +39,19 @@ class AppConfig {
   int leaderSymbols = 15; // VOX leader, 24 ms each
   int maxChunksPerBurst = 24;
   int ackTimeoutSec = 15;
-  bool useLoopback = false;
+
+  /// Which audio transport to use (sound card, Bluetooth radio, loopback).
+  AudioBackendKind audioBackend = AudioBackendKind.soundCard;
+
+  /// Convenience view of [audioBackend] used by tests and older code.
+  bool get useLoopback => audioBackend == AudioBackendKind.loopback;
+  set useLoopback(bool v) =>
+      audioBackend = v ? AudioBackendKind.loopback : AudioBackendKind.soundCard;
+
+  /// Bluetooth radio selection (MAC address + display name), used when
+  /// [audioBackend] is [AudioBackendKind.bluetoothRadio].
+  String btRadioAddress = '';
+  String btRadioName = '';
 
   /// Audio device selection; null = system default.
   String? inputDeviceId;
@@ -49,7 +76,9 @@ class AppConfig {
         'leaderSymbols': leaderSymbols,
         'maxChunksPerBurst': maxChunksPerBurst,
         'ackTimeoutSec': ackTimeoutSec,
-        'useLoopback': useLoopback,
+        'audioBackend': audioBackend.name,
+        'btRadioAddress': btRadioAddress,
+        'btRadioName': btRadioName,
         'inputDeviceId': inputDeviceId,
         'inputDeviceLabel': inputDeviceLabel,
         'outputDeviceName': outputDeviceName,
@@ -74,7 +103,14 @@ class AppConfig {
     c.maxChunksPerBurst =
         (j['maxChunksPerBurst'] as num?)?.toInt() ?? c.maxChunksPerBurst;
     c.ackTimeoutSec = (j['ackTimeoutSec'] as num?)?.toInt() ?? c.ackTimeoutSec;
-    c.useLoopback = (j['useLoopback'] as bool?) ?? c.useLoopback;
+    c.audioBackend = AudioBackendKind.values.firstWhere(
+        (v) => v.name == j['audioBackend'],
+        // Configs saved before the Bluetooth feature only had a bool.
+        orElse: () => (j['useLoopback'] as bool?) == true
+            ? AudioBackendKind.loopback
+            : AudioBackendKind.soundCard);
+    c.btRadioAddress = (j['btRadioAddress'] as String?) ?? '';
+    c.btRadioName = (j['btRadioName'] as String?) ?? '';
     c.inputDeviceId = j['inputDeviceId'] as String?;
     c.inputDeviceLabel = (j['inputDeviceLabel'] as String?) ?? '';
     c.outputDeviceName = j['outputDeviceName'] as String?;
@@ -189,6 +225,36 @@ class ModemService extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// Paired/compatible Bluetooth radios (filled by [refreshBtRadios]).
+  List<BluetoothClassicDevice> btRadios = [];
+  bool enumeratingBtRadios = false;
+
+  Future<void> refreshBtRadios() async {
+    if (enumeratingBtRadios) return;
+    enumeratingBtRadios = true;
+    notifyListeners();
+    try {
+      btRadios = await BtRadioAudioBackend.listRadios();
+      if (btRadios.isEmpty) {
+        _addLog('no paired Bluetooth radios found — pair the radio in the '
+            'system Bluetooth settings first');
+      }
+    } catch (e) {
+      _addLog('Bluetooth radio scan failed: $e');
+    } finally {
+      enumeratingBtRadios = false;
+      notifyListeners();
+    }
+  }
+
+  /// Append a line to the activity log (used by audio backends and native
+  /// bridges that live outside this class).
+  void addLog(String s) {
+    _addLog(s);
+    notifyListeners();
+  }
+
   double get rxLevel => _rx?.rxRms ?? 0;
   double get lastSnrDb => _rx?.lastSnrDb ?? 0;
   RxState get rxState => _rx?.state ?? RxState.searching;

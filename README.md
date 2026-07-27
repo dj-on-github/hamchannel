@@ -106,6 +106,34 @@ radio speaker/data out ───────────────────
   attenuated (the equalizer copes with moderate roll-off, but narrow +
   lower-order modulation is the robust choice).
 
+## Bluetooth handy-talkie radios (no cables)
+
+Radios in the Benshi family (BTech **UV-Pro**, **GA-5WB**, Vero **VR-N76**,
+RadioOddity and compatible models) expose their audio path over Bluetooth
+Classic. HamChannel can use that instead of audio cables:
+
+* Pair the radio in the **system Bluetooth settings** first.
+* In the **Settings** tab set **Audio connection** to *Bluetooth
+  handy-talkie radio* and pick the radio from the pulldown (Rescan re-reads
+  the paired list).
+* Press **Start** as usual. Received audio arrives over the radio's
+  Bluetooth audio channel, and transmitted bursts are streamed to the radio,
+  which **keys its own transmitter** while audio frames arrive — no VOX and
+  no PTT wiring (the VOX leader setting is not used in this mode).
+
+The radio's Bluetooth audio uses the SBC codec (32 kHz mono); the modem
+resamples between its native 48 kHz and the radio's 32 kHz. All bandwidth
+profiles up to 12 kHz work through this path; the 24 kHz wide profile does
+not fit in the radio's audio passband.
+
+Supported on **macOS** (IOBluetooth) and **Linux** (BlueZ; the build needs
+`libbluetooth-dev` and GLib/GIO, see below). Windows is not wired up yet —
+use audio cables there.
+
+The Bluetooth transport (RFCOMM channel handling, SBC codec, frame pacing)
+is adapted from [HTCommander](https://github.com/Ylianst/HTCommander) by
+Ylian Saint-Hilaire (Apache-2.0), reused with the author's permission.
+
 ## Building & running
 
 ```bash
@@ -131,6 +159,13 @@ headers:
 sudo apt install pulseaudio-utils libasound2-dev
 ```
 
+Bluetooth radio support on Linux additionally needs the BlueZ and GIO
+development packages at build time:
+
+```bash
+sudo apt install libbluetooth-dev libglib2.0-dev
+```
+
 ## Tests
 
 `./run_checks.sh` (or `flutter test`) runs:
@@ -142,7 +177,10 @@ sudo apt install pulseaudio-utils libasound2-dev
   back-to-back bursts),
 * the ARQ protocol (message ack, file transfer, NAK recovery, file
   request, listing) over a simulated block-loss channel,
-* a complete two-station end-to-end exchange over the simulated audio path.
+* a complete two-station end-to-end exchange over the simulated audio path,
+* the Bluetooth audio chain: 0x7e framing, the 48↔32 kHz resampler, an SBC
+  codec round trip, and full modem bursts pushed through the exact
+  SBC/framing path the Bluetooth backend uses.
 
 ## Offline analysis (PCM files)
 

@@ -32,6 +32,12 @@ class _ChannelTabState extends State<ChannelTab> {
         widget.service.refreshAudioDevices();
       });
     }
+    if (widget.service.config.audioBackend == AudioBackendKind.bluetoothRadio &&
+        widget.service.btRadios.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.service.refreshBtRadios();
+      });
+    }
   }
 
   @override
@@ -153,6 +159,55 @@ class _ChannelTabState extends State<ChannelTab> {
                   Text('Audio / PTT',
                       style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 8),
+                  _drop<AudioBackendKind>(
+                    label: 'Audio connection',
+                    value: cfg.audioBackend,
+                    items: const {
+                      AudioBackendKind.soundCard:
+                          'Sound card + audio cables (VOX / PTT)',
+                      AudioBackendKind.bluetoothRadio:
+                          'Bluetooth handy-talkie radio (UV-Pro / GA-5WB / VR-N76)',
+                      AudioBackendKind.loopback:
+                          'Loopback test mode — TX fed straight back into RX, no radio',
+                    },
+                    onChanged: (v) => setState(() {
+                      cfg.audioBackend = v;
+                      if (v == AudioBackendKind.bluetoothRadio &&
+                          s.btRadios.isEmpty) {
+                        s.refreshBtRadios();
+                      }
+                    }),
+                  ),
+                  const SizedBox(height: 8),
+                  if (cfg.audioBackend == AudioBackendKind.bluetoothRadio) ...[
+                    Row(children: [
+                      Expanded(child: _btRadioDrop(s, cfg)),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Rescan paired Bluetooth radios',
+                        onPressed:
+                            s.enumeratingBtRadios ? null : s.refreshBtRadios,
+                        icon: s.enumeratingBtRadios
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child:
+                                    CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.refresh),
+                      ),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Pair the radio in the system Bluetooth settings first. '
+                      'Audio goes over the radio\'s Bluetooth audio channel — '
+                      'no cables, and the radio keys its own transmitter '
+                      '(the VOX leader setting is not used). '
+                      'Supported on macOS and Linux.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                  if (cfg.audioBackend == AudioBackendKind.soundCard)
                   Row(children: [
                     Expanded(
                       child: _deviceDrop(
@@ -257,15 +312,6 @@ class _ChannelTabState extends State<ChannelTab> {
                       ),
                     ),
                   ]),
-                  const SizedBox(height: 8),
-                  SwitchListTile(
-                    title: const Text('Loopback test mode (no sound card)'),
-                    subtitle: const Text(
-                        'TX audio is fed straight back into the receiver — '
-                        'useful for testing the modem without a radio'),
-                    value: cfg.useLoopback,
-                    onChanged: (v) => setState(() => cfg.useLoopback = v),
-                  ),
                   const SizedBox(height: 16),
                   Text('FCC Logging',
                       style: Theme.of(context).textTheme.titleLarge),
@@ -375,6 +421,54 @@ class _ChannelTabState extends State<ChannelTab> {
       s.rememberDir(path);
       await s.startPcmWrite(path);
     }
+  }
+
+  /// Bluetooth radio pulldown. Keeps a stale saved selection visible even
+  /// if the radio is not currently in the paired list.
+  Widget _btRadioDrop(ModemService s, AppConfig cfg) {
+    final addrs = s.btRadios.map((d) => d.address).toSet();
+    final String? value =
+        cfg.btRadioAddress.isEmpty ? null : cfg.btRadioAddress;
+    return InputDecorator(
+      decoration: const InputDecoration(
+          labelText: 'Bluetooth radio', border: OutlineInputBorder()),
+      child: DropdownButtonHideUnderline(
+        child: DropdownButton<String?>(
+          value: value,
+          isExpanded: true,
+          items: [
+            const DropdownMenuItem<String?>(
+              value: null,
+              child: Text('— select a paired radio —'),
+            ),
+            for (final d in s.btRadios)
+              DropdownMenuItem<String?>(
+                value: d.address,
+                child: Text(
+                  d.name.isEmpty ? d.address : '${d.name}  (${d.address})',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            if (value != null && !addrs.contains(value))
+              DropdownMenuItem<String?>(
+                value: value,
+                child: Text(
+                  '${cfg.btRadioName.isEmpty ? value : cfg.btRadioName} '
+                  '(not seen — rescan)',
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (addr) => setState(() {
+            cfg.btRadioAddress = addr ?? '';
+            cfg.btRadioName = '';
+            for (final d in s.btRadios) {
+              if (d.address == addr) cfg.btRadioName = d.name;
+            }
+          }),
+        ),
+      ),
+    );
   }
 
   /// Device pulldown: null value = system default. Keeps a stale saved
