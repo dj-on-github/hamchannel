@@ -65,6 +65,26 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
     // dropped natively); enabling sets it true again. The channel is only really
     // closed on a full radio disconnect.
     private var audioForwardingEnabled: [String: Bool] = [:]
+
+    /// In-flight async RFCOMM writes. IOBluetooth's writeAsync does NOT copy
+    /// the buffer — it must stay valid until rfcommChannelWriteComplete fires.
+    /// Each entry owns a malloc'd copy of the bytes (freed on completion) and,
+    /// for sendAudio, the FlutterResult to answer. Completing the platform call
+    /// only when the write completes gives Dart real backpressure, so the
+    /// paced transmit loop can no longer flood IOBluetooth's outbound queue.
+    private struct PendingWrite {
+        /// Unique id: the ONLY safe way for delayed closures (the timeout
+        /// safety net) to refer to an entry. Buffer addresses must never be
+        /// used for that — malloc reuses freed addresses, so a stale timer
+        /// from a completed write could match a LATER write's buffer and
+        /// answer it falsely (which made Dart retransmit bundles and
+        /// stuttered every burst after the first).
+        let id: UInt64
+        let buffer: UnsafeMutableRawPointer
+        let result: FlutterResult?
+    }
+    private var pendingWrites: [PendingWrite] = []
+    private var nextWriteId: UInt64 = 0
     
     // Vendor "BS AOC" service that carries the SBC audio stream on these radios.
     // Custom 128-bit UUID 39144315-32FA-40DB-85ED-FBFEBA2D86E6. Audio does NOT
@@ -170,8 +190,7 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
                 result(FlutterError(code: "INVALID_ARGS", message: "Missing address or data", details: nil))
                 return
             }
-            let success = sendAudio(address: address, data: data.data)
-            result(success)
+            sendAudio(address: address, data: data.data, result: result)
             
         case "getDeviceNames":
             result(getDeviceNames())
@@ -616,34 +635,66 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
         channel.close()
     }
 
-    private func sendAudio(address: String, data: Data) -> Bool {
+    /// Start an async RFCOMM write from a malloc'd copy of [data] (kept alive
+    /// until rfcommChannelWriteComplete, which frees it). Returns the buffer
+    /// on success so the caller can register a PendingWrite, nil on failure.
+    private func startAsyncWrite(on channel: IOBluetoothRFCOMMChannel, data: Data) -> UnsafeMutableRawPointer? {
+        let buffer = UnsafeMutableRawPointer.allocate(byteCount: max(data.count, 1), alignment: 1)
+        data.copyBytes(to: buffer.assumingMemoryBound(to: UInt8.self), count: data.count)
+        let ret = channel.writeAsync(buffer, length: UInt16(data.count), refcon: buffer)
+        if ret != kIOReturnSuccess {
+            buffer.deallocate()
+            return nil
+        }
+        return buffer
+    }
+
+    /// Audio-channel write with backpressure: the FlutterResult is answered
+    /// from rfcommChannelWriteComplete, so the Dart `await` returns only once
+    /// the bytes have actually gone to the link — never faster than the radio
+    /// accepts them.
+    private func sendAudio(address: String, data: Data, result: @escaping FlutterResult) {
         let normalizedAddress = address.uppercased().replacingOccurrences(of: ":", with: "-")
         guard let connection = audioConnections[normalizedAddress] else {
-            return false
+            result(false)
+            return
         }
-
-        var mutableData = data
-        let result = mutableData.withUnsafeMutableBytes { (ptr: UnsafeMutableRawBufferPointer) -> IOReturn in
-            guard let baseAddress = ptr.baseAddress else { return kIOReturnError }
-            return connection.channel.writeAsync(baseAddress, length: UInt16(data.count), refcon: nil)
+        guard let buffer = startAsyncWrite(on: connection.channel, data: data) else {
+            result(false)
+            return
         }
-        return result == kIOReturnSuccess
+        nextWriteId += 1
+        let writeId = nextWriteId
+        pendingWrites.append(PendingWrite(id: writeId, buffer: buffer, result: result))
+        // Safety net: if the completion is lost (e.g. the channel dies with
+        // the write queued), answer false after 5 s so Dart never hangs.
+        // Matched by unique id — NEVER by buffer address (see PendingWrite).
+        // The buffer is NOT freed here — it may still be referenced by the
+        // queue; rfcommChannelClosed/writeComplete remain responsible for it.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
+            guard let self = self else { return }
+            if let idx = self.pendingWrites.firstIndex(where: { $0.id == writeId }) {
+                let pending = self.pendingWrites.remove(at: idx)
+                pending.result?(false)
+            }
+        }
     }
-    
+
     private func send(address: String, data: Data) -> Bool {
         let normalizedAddress = address.uppercased().replacingOccurrences(of: ":", with: "-")
-        
+
         guard let connection = connections[normalizedAddress] else {
             return false
         }
-        
-        var mutableData = data
-        let result = mutableData.withUnsafeMutableBytes { (ptr: UnsafeMutableRawBufferPointer) -> IOReturn in
-            guard let baseAddress = ptr.baseAddress else { return kIOReturnError }
-            return connection.channel.writeAsync(baseAddress, length: UInt16(data.count), refcon: nil)
+
+        guard let buffer = startAsyncWrite(on: connection.channel, data: data) else {
+            return false
         }
-        
-        return result == kIOReturnSuccess
+        // No FlutterResult: data-channel sends keep their fire-and-forget
+        // semantics, but the buffer must still live until write completion.
+        nextWriteId += 1
+        pendingWrites.append(PendingWrite(id: nextWriteId, buffer: buffer, result: nil))
+        return true
     }
     
     // MARK: - IOBluetoothRFCOMMChannelDelegate
@@ -717,6 +768,19 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
               let device = channel.getDevice(),
               let address = device.addressString?.uppercased().replacingOccurrences(of: ":", with: "-") else {
             return
+        }
+
+        // Fail any sendAudio still waiting on a write completion so the Dart
+        // side unblocks immediately instead of hitting the 5 s safety net.
+        // (Buffers are intentionally leaked here: IOBluetooth may still hold
+        // references to queued writes, and a one-off leak on disconnect is
+        // preferable to a use-after-free.)
+        if !pendingWrites.isEmpty {
+            let stillPending = pendingWrites
+            pendingWrites.removeAll()
+            for pending in stillPending {
+                pending.result?(false)
+            }
         }
 
         guard let route = routeFor(channel: channel) else {
@@ -816,6 +880,14 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
     }
     
     func rfcommChannelWriteComplete(_ rfcommChannel: IOBluetoothRFCOMMChannel!, refcon: UnsafeMutableRawPointer!, status error: IOReturn) {
+        guard let refcon = refcon else { return }
+        // refcon is the malloc'd buffer registered in startAsyncWrite: free it
+        // and answer the pending sendAudio (if any) with the write status.
+        if let idx = pendingWrites.firstIndex(where: { $0.buffer == refcon }) {
+            let pending = pendingWrites.remove(at: idx)
+            pending.result?(error == kIOReturnSuccess)
+        }
+        refcon.deallocate()
     }
     
     func rfcommChannelQueueSpaceAvailable(_ rfcommChannel: IOBluetoothRFCOMMChannel!) {

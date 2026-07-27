@@ -13,9 +13,9 @@
 ///  * 0x7e-delimited frames, 0x7d escape (next byte XOR 0x20);
 ///  * first byte = command: 0x00/0x03 received SBC audio, 0x01 audio end,
 ///    0x02 ack, 0x09 transmit echo; transmit frames use command 0x00;
-///  * SBC: 32 kHz, mono, 16 blocks, 8 subbands, bitpool 40, and SNR bit
-///    allocation for modem waveforms (signalled per frame, the radio's
-///    decoder adapts);
+///  * SBC: 32 kHz, mono, 16 blocks, 8 subbands, bitpool 40, loudness bit
+///    allocation (the HTCommander-proven configuration; some radio firmware
+///    mis-decodes SNR-allocated frames);
 ///  * a fixed end-frame tells the radio to stop transmitting.
 ///
 /// The modem runs at 48 kHz; this backend resamples 48↔32 kHz (2/3 ratio).
@@ -135,10 +135,29 @@ class BtRadioAudioBackend implements AudioBackend {
   /// PCM bytes consumed per encoded SBC frame: blocks * subbands * 2.
   static const int _pcmPerFrame = 16 * 8 * 2;
 
-  /// Transmit pacing lead (ms). Modem bursts are corruption-sensitive data,
-  /// so use a deep lead like HTCommander's data transmissions: the encoder
-  /// runs ahead and the OS/RFCOMM flow control paces actual delivery.
-  static const int _txLeadMs = 10000;
+  /// Transmit pacing lead (ms): how far ahead of real time the encoder may
+  /// run. The native plugins provide real backpressure (Linux blocks on the
+  /// RFCOMM socket; macOS answers each write only on rfcommChannelWriteComplete),
+  /// so this bounds how much audio sits queued in the OS + radio. It must
+  /// stay UNDER the radio's internal audio FIFO depth — over-delivering
+  /// during the lead build-up overflows it and the dropped frames stutter
+  /// the start of the transmission. 1 s matches HTCommander's field-proven
+  /// voice lead.
+  static const int _txLeadMs = 1000;
+
+  /// Silence prepended to every burst (ms of audio). The radio keys its
+  /// transmitter when audio frames arrive; key-up, buffer settling and any
+  /// early frame drops then land on silence instead of eating the burst's
+  /// leader/chanest — the part the receiver cannot synchronize without.
+  static const int _txPrerollMs = 1500;
+
+  /// Trailing silence (ms) so the end-of-audio marker never clips the
+  /// postamble while the radio drains its buffer.
+  static const int _txTailMs = 250;
+
+  /// Retries when the native layer refuses an audio write (e.g. a
+  /// momentarily full outbound queue) before declaring the burst lost.
+  static const int _txWriteRetries = 50;
 
   /// Frame that tells the radio to stop transmitting.
   static final Uint8List _endAudioFrame = Uint8List.fromList(
@@ -164,7 +183,14 @@ class BtRadioAudioBackend implements AudioBackend {
     ..frequency = SbcFrequency.freq32K
     ..blocks = 16
     ..mode = SbcMode.mono
-    ..allocationMethod = SbcBitAllocationMethod.snr // modem waveform, not voice
+    // Loudness, NOT snr: although SNR allocation is theoretically better for
+    // a modem waveform (and is what HTCommander's DART mode selects), some
+    // radio firmware decodes SNR-allocated frames incorrectly, producing
+    // heavily distorted transmit audio. Loudness at bitpool 40 is the
+    // configuration proven clean over the air by HTCommander voice, and the
+    // radios' own encoders use it for the receive direction — measured good
+    // enough for the OFDM profiles that fit the Bluetooth path.
+    ..allocationMethod = SbcBitAllocationMethod.loudness
     ..subbands = 8
     ..bitpool = 40;
 
@@ -203,16 +229,19 @@ class BtRadioAudioBackend implements AudioBackend {
       }
     });
 
-    // Open the audio RFCOMM channel; if that fails, bring up the control
-    // channel first (some radios only expose audio once connected) and retry.
+    // Bring the channels up in HTCommander's field-proven order: the control
+    // (SPP) channel first — the radio expects its command side connected —
+    // then the audio channel. Running audio without the control channel is an
+    // untested radio state and was implicated in distorted transmit audio.
+    _openedControl = await bridge.connect(macAddress);
+    if (!_openedControl) {
+      _log('control channel connect failed — trying audio anyway');
+    }
     var ok = await bridge.connectAudio(macAddress);
-    if (!ok) {
-      _log('audio channel refused; opening control channel first');
-      _openedControl = await bridge.connect(macAddress);
-      for (var attempt = 0; attempt < 3 && !ok; attempt++) {
-        await Future<void>.delayed(const Duration(milliseconds: 700));
-        ok = await bridge.connectAudio(macAddress);
-      }
+    for (var attempt = 0; attempt < 3 && !ok; attempt++) {
+      _log('audio channel refused; retrying');
+      await Future<void>.delayed(const Duration(milliseconds: 700));
+      ok = await bridge.connectAudio(macAddress);
     }
     if (!ok) {
       await _connSub?.cancel();
@@ -284,8 +313,15 @@ class BtRadioAudioBackend implements AudioBackend {
     _playing = true;
     final bridge = BluetoothClassicBridge.instance;
     try {
+      // Wrap the burst in silence: preroll for radio key-up/buffer settling,
+      // a short tail so the end marker doesn't clip the postamble.
+      const preroll = 48 * _txPrerollMs; // samples @48 kHz
+      const tail = 48 * _txTailMs;
+      final padded = Float64List(preroll + samples.length + tail);
+      padded.setRange(preroll, preroll + samples.length, samples);
+
       // 48 kHz float -> 32 kHz int16 bytes.
-      final r32 = StreamingResampler.resampleAll(samples, 2, 3);
+      final r32 = StreamingResampler.resampleAll(padded, 2, 3);
       final pcm = Uint8List(2 * r32.length);
       final bd = ByteData.sublistView(pcm);
       for (var i = 0; i < r32.length; i++) {
@@ -303,7 +339,21 @@ class BtRadioAudioBackend implements AudioBackend {
       while (pcm.length - offset >= _pcmPerFrame) {
         final (encoded, consumed) = _encodeSbcFrames(pcm, offset);
         if (encoded == null || consumed <= 0) break;
-        await bridge.sendAudio(macAddress, BtAudioFraming.escape(0, encoded));
+        // Never silently drop a refused write — a missing bundle tears a
+        // hole in the OFDM waveform the receiver cannot ride over.
+        final framed = BtAudioFraming.escape(0, encoded);
+        var sent = false;
+        for (var attempt = 0; attempt < _txWriteRetries && !sent; attempt++) {
+          sent = await bridge.sendAudio(macAddress, framed);
+          if (!sent) {
+            await Future<void>.delayed(const Duration(milliseconds: 20));
+          }
+        }
+        if (!sent) {
+          lastError = 'Bluetooth audio write kept failing — burst aborted';
+          _log(lastError!);
+          break;
+        }
         offset += consumed;
         sentBytes += consumed;
         final expectedElapsedMs =
@@ -315,8 +365,19 @@ class BtRadioAudioBackend implements AudioBackend {
         }
       }
 
+      // Delivery diagnostic: audio seconds handed to the radio vs wall time.
+      // Wall ≈ audio − lead means pacing tracked real time; wall well below
+      // that means the link outran the radio (overflow risk); wall above
+      // audio means the link couldn't keep up (starvation/stutter).
+      _log('burst: ${(sentBytes / bytesPerSecond).toStringAsFixed(1)} s audio '
+          'delivered in ${(stopwatch.elapsedMilliseconds / 1000).toStringAsFixed(1)} s '
+          '(lead ${_txLeadMs / 1000} s)');
+
       // Stop-transmitting marker (delivered in stream order after the audio).
-      await bridge.sendAudio(macAddress, _endAudioFrame);
+      for (var attempt = 0; attempt < 5; attempt++) {
+        if (await bridge.sendAudio(macAddress, _endAudioFrame)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      }
 
       // Hold until the radio has actually played the burst out, so the modem
       // only unmutes / starts ACK timers once the channel is clear again.

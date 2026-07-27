@@ -18,12 +18,13 @@ import 'package:hamchannel/sbc/sbc_encoder.dart';
 import 'package:hamchannel/sbc/sbc_enums.dart';
 import 'package:hamchannel/sbc/sbc_frame.dart';
 
-/// Encoder configuration used by the backend (32 kHz mono modem waveform).
+/// Encoder configuration used by the backend (32 kHz mono modem waveform;
+/// loudness allocation — see BtRadioAudioBackend for why not snr).
 SbcFrame btEncoderFrame() => SbcFrame()
   ..frequency = SbcFrequency.freq32K
   ..blocks = 16
   ..mode = SbcMode.mono
-  ..allocationMethod = SbcBitAllocationMethod.snr
+  ..allocationMethod = SbcBitAllocationMethod.loudness
   ..subbands = 8
   ..bitpool = 40;
 
