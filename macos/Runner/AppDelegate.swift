@@ -312,32 +312,50 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
     private func connect(address: String, result: @escaping FlutterResult) {
         // Normalize address format
         let normalizedAddress = address.uppercased().replacingOccurrences(of: ":", with: "-")
-        
-        
+
         // Check if already connected
         if let existingConnection = connections[normalizedAddress] {
             if existingConnection.isConnected {
                 result(true)
                 return
             } else {
-                // Clean up stale connection
+                // Clean up stale connection, then continue after a short
+                // settle WITHOUT blocking the main thread (a Thread.sleep here
+                // beachballs the app).
+                existingConnection.channel.setDelegate(nil)
                 existingConnection.channel.close()
                 connections.removeValue(forKey: normalizedAddress)
-                Thread.sleep(forTimeInterval: 0.3)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    self?.connectToDevice(address: normalizedAddress, result: result)
+                }
+                return
             }
         }
-        
+
+        connectToDevice(address: normalizedAddress, result: result)
+    }
+
+    private func connectToDevice(address: String, result: @escaping FlutterResult) {
         // Find the device by address
-        guard let device = IOBluetoothDevice(addressString: normalizedAddress) else {
+        guard let device = IOBluetoothDevice(addressString: address) else {
             result(FlutterError(code: "DEVICE_NOT_FOUND", message: "Device not found: \(address)", details: nil))
             return
         }
-        
-        
-        // If device shows as connected but we don't have a connection, close it
+
+        // If the device shows as connected but we hold no connection, close the
+        // lingering baseband link first. closeConnection() is SYNCHRONOUS and
+        // can block for many seconds (up to the link-supervision timeout) when
+        // the radio is busy — e.g. right after a teardown mid-audio-drain — so
+        // it must run OFF the main thread; running it here froze the app with
+        // a spinning cursor whenever the modem was reconfigured mid-session.
         if device.isConnected() {
-            device.closeConnection()
-            Thread.sleep(forTimeInterval: 0.5)
+            DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+                device.closeConnection()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    self?.attemptControlConnect(device: device, address: address, attempt: 1, result: result)
+                }
+            }
+            return
         }
 
         // The control (SPP / data) channel on these radios is either RFCOMM
@@ -345,7 +363,7 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
         // channel scan, alternating between the two channels on each attempt.
         // Each attempt is given a short timeout and retried, which is far more
         // reliable than a single long attempt.
-        attemptControlConnect(device: device, address: normalizedAddress, attempt: 1, result: result)
+        attemptControlConnect(device: device, address: address, attempt: 1, result: result)
     }
 
     /// Open the control RFCOMM channel for a single attempt, alternating between
@@ -359,7 +377,10 @@ class BluetoothClassicHandler: NSObject, FlutterPlugin, IOBluetoothRFCOMMChannel
         let openResult = device.openRFCOMMChannelAsync(&rfcommChannel, withChannelID: controlChannelID, delegate: self)
 
         if openResult != kIOReturnSuccess || rfcommChannel == nil {
-            device.closeConnection()
+            // closeConnection can block for seconds — never on the main thread.
+            DispatchQueue.global(qos: .utility).async {
+                device.closeConnection()
+            }
             retryOrFailControlConnect(device: device, address: address, attempt: attempt, result: result)
             return
         }

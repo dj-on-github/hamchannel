@@ -130,6 +130,19 @@ Supported on **macOS** (IOBluetooth) and **Linux** (BlueZ; the build needs
 `libbluetooth-dev` and GLib/GIO, see below). Windows is not wired up yet —
 use audio cables there.
 
+**If transmit audio stutters** (most often seen on macOS): the radio also
+registers as a Bluetooth *headset* with the OS, and our audio shares the
+2.4 GHz link with everything else on it. Make sure the radio is never
+selected as the system sound input/output, disconnect other Bluetooth audio
+devices (especially anything with an active microphone — headset SCO mode
+reserves radio slots), prefer 5 GHz Wi-Fi or none during operation, and
+keep the radio away from USB-3 hubs. HamChannel transmits SBC at the
+radio's native bitpool 18 with loudness allocation — the firmware's
+most-tested format and half the airtime of higher bitpools; raising the
+bitpool in `bt_radio_backend.dart` buys codec SNR only on a clean link.
+Note that voice apps can sound fine over a link that still glitches too
+often for OFDM bursts — speech hides 20 ms dropouts, a modem doesn't.
+
 The Bluetooth transport (RFCOMM channel handling, SBC codec, frame pacing)
 is adapted from [HTCommander](https://github.com/Ylianst/HTCommander) by
 Ylian Saint-Hilaire (Apache-2.0), reused with the author's permission.

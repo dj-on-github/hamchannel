@@ -178,6 +178,8 @@ class BtRadioAudioBackend implements AudioBackend {
   bool _started = false;
   bool _openedControl = false;
   bool _playing = false;
+  bool _stopRequested = false;
+  Future<void>? _txInFlight;
   String? lastError;
 
   late final SbcFrame _encoderFrame = SbcFrame()
@@ -316,6 +318,8 @@ class BtRadioAudioBackend implements AudioBackend {
   Future<void> playBurst(Float64List samples) async {
     if (!_started) throw StateError('Bluetooth radio not connected');
     _playing = true;
+    final done = Completer<void>();
+    _txInFlight = done.future;
     final bridge = BluetoothClassicBridge.instance;
     try {
       // Wrap the burst in silence: preroll for radio key-up/buffer settling,
@@ -342,13 +346,16 @@ class BtRadioAudioBackend implements AudioBackend {
       var offset = 0;
       var sentBytes = 0;
       while (pcm.length - offset >= _pcmPerFrame) {
+        if (_stopRequested) break; // stop() wants the channel torn down
         final (encoded, consumed) = _encodeSbcFrames(pcm, offset);
         if (encoded == null || consumed <= 0) break;
         // Never silently drop a refused write — a missing bundle tears a
         // hole in the OFDM waveform the receiver cannot ride over.
         final framed = BtAudioFraming.escape(0, encoded);
         var sent = false;
-        for (var attempt = 0; attempt < _txWriteRetries && !sent; attempt++) {
+        for (var attempt = 0;
+            attempt < _txWriteRetries && !sent && !_stopRequested;
+            attempt++) {
           sent = await bridge.sendAudio(macAddress, framed);
           if (!sent) {
             await Future<void>.delayed(const Duration(milliseconds: 20));
@@ -386,13 +393,18 @@ class BtRadioAudioBackend implements AudioBackend {
 
       // Hold until the radio has actually played the burst out, so the modem
       // only unmutes / starts ACK timers once the channel is clear again.
-      final totalMs = (pcm.length ~/ 2) * 1000 ~/ radioSampleRate + 250;
-      final remainMs = totalMs - stopwatch.elapsedMilliseconds;
-      if (remainMs > 0) {
-        await Future<void>.delayed(Duration(milliseconds: remainMs));
+      // (Skipped when stop() is waiting — nothing is listening any more.)
+      if (!_stopRequested) {
+        final totalMs = (pcm.length ~/ 2) * 1000 ~/ radioSampleRate + 250;
+        final remainMs = totalMs - stopwatch.elapsedMilliseconds;
+        if (remainMs > 0) {
+          await Future<void>.delayed(Duration(milliseconds: remainMs));
+        }
       }
     } finally {
       _playing = false;
+      done.complete();
+      _txInFlight = null;
     }
   }
 
@@ -422,6 +434,15 @@ class BtRadioAudioBackend implements AudioBackend {
 
   @override
   Future<void> stop() async {
+    _stopRequested = true;
+    // Let an in-flight transmission abort cleanly before tearing down the
+    // channels — disconnecting under an active write stream leaves the link
+    // half-dead and makes the reconnect slow. Bounded wait: the TX loop
+    // checks the flag every bundle (~12 ms of audio).
+    final tx = _txInFlight;
+    if (tx != null) {
+      await tx.timeout(const Duration(seconds: 3), onTimeout: () {});
+    }
     if (!_started) {
       await _connSub?.cancel();
       _connSub = null;
