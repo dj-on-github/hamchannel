@@ -1,5 +1,7 @@
 # HamChannel
 
+![alt text](hamchannel_icon.svg "Ham Channel Icon")
+
 An OFDM soundcard data modem for VHF/UHF FM ham radios, built in Flutter for
 desktop (macOS / Linux / Windows). It sends text messages and files between
 two stations using the laptop's headphone and microphone jacks wired to the
@@ -17,25 +19,15 @@ format, packet wire formats, ARQ procedures) is specified in
 
 ## Physical layer
 
-| Profile | Occupancy | Subcarriers | Audio span | Net @ QPSK 1/2 |
-|---|---|---|---|---|
-| HF | 2.8 kHz (SSB) | 52 | 375 Hz – 2.81 kHz | 1.9 kbit/s |
-| 4 kHz | 4 kHz | 64 | 750 Hz – 3.75 kHz | 2.3 kbit/s |
-| 6 kHz | 6 kHz | 112 | 750 Hz – 6.0 kHz | 4.1 kbit/s |
-| 8 kHz | 8 kHz | 152 | 750 Hz – 7.9 kHz | 5.5 kbit/s |
-| 10 kHz | 10 kHz | 192 | 750 Hz – 9.75 kHz | 7.0 kbit/s |
-| Narrow | 12 kHz | 240 | 750 Hz – 12 kHz | 8.75 kbit/s |
-| Wide | 24 kHz | 480 | 750 Hz – 23.25 kHz | 17.5 kbit/s |
-
-All profiles share the modulations, LDPC codes and frame format — only
-the subcarrier count differs. The 4–10 kHz ladder exists to find how much
-bandwidth a given radio's audio path actually passes cleanly; step down
-until the link is solid. On SSB (HF profile), both stations must be tuned
-within a few hertz — the modem has no carrier-frequency search.
+| Property | Narrow | Wide |
+|---|---|---|
+| Channel occupancy | 12 kHz | 24 kHz |
+| Active subcarriers | 240 | 480 |
+| Audio span | 750 Hz – 12 kHz | 750 Hz – 23.25 kHz |
 
 * 48 kHz sample rate, 1024-point FFT (46.875 Hz spacing), 1/8 cyclic prefix,
   24 ms symbols.
-* Subcarrier modulation: **BPSK, QPSK, 16-QAM or 64-QAM** (Settings tab).
+* Subcarrier modulation: **BPSK, QPSK, 16-QAM or 64-QAM** (Channel tab).
 * FEC: systematic IRA-type **LDPC (n = 2048)** at rates **1/2, 2/3, 3/4,
   5/6**, normalized min-sum decoder; every block carries a CRC-32.
 * Burst = VOX leader (repeated sync symbol) + channel-estimation symbol +
@@ -67,27 +59,9 @@ within a few hertz — the modem has no carrier-frequency search.
    the last received transmission, with SNR and EVM statistics (RMS, max,
    standard deviation). Capture is off by default; enable it with the
    switch at the top of the tab.
-5. **Settings** — channel width (HF/narrow/wide), subcarrier modulation,
-   LDPC rate, callsigns, audio input/output device selection, TX level,
-   VOX leader length, PCM capture, FCC Logging, loopback test mode.
-
-## FCC Logging
-
-FCC Part 97 does not generally require a station log, but keeping one that
-can be produced on request is a long-standing recommendation. Enable **FCC
-Logging** in the Settings tab, choose a log file (remembered across
-restarts), and the app appends one line for every transmission and
-reception:
-
-```
-Tx 2026-07-15 21:04:03Z W1AW KD2XYZ 12kHz OFDM-240 LDPC-1/2 MSG "hello"
-Rx 2026-07-15 21:04:11Z KD2XYZ W1AW 12kHz OFDM-240 LDPC-1/2 MSG_ACK
-```
-
-Fields: direction (Tx/Rx), UTC date and time, sender callsign, recipient
-callsign, channel bandwidth, modulation format (`OFDM-<subcarriers>`),
-LDPC code rate, and the content (message text, or a summary of file
-transfer / control packets).
+5. **Channel** — narrow/wide, subcarrier modulation, LDPC rate, callsigns,
+   audio input/output device selection, TX level, VOX leader length,
+   PCM capture, loopback test mode.
 
 ## Radio wiring (VOX keying)
 
@@ -96,7 +70,7 @@ laptop headphone out ──[attenuator 10:1 or isolation transformer]──▶ r
 radio speaker/data out ──────────────────────────────────────────▶ laptop mic in
 ```
 
-* Enable VOX on the radio. Increase **VOX leader** (Settings tab) if the
+* Enable VOX on the radio. Increase **VOX leader** (Channel tab) if the
   start of bursts is clipped; 360 ms suits most HTs.
 * Set radio and laptop volumes so the **RX meter moves to mid-scale without
   clipping**; keep **TX level** low enough that the FM deviation stays clean
@@ -118,14 +92,9 @@ macOS: microphone permission is requested on first start
 `com.apple.security.device.audio-input` entitlement must be present in
 `DebugProfile.entitlements` / `Release.entitlements`).
 
-Linux: the device pulldowns list each PulseAudio/PipeWire **port**
-separately (e.g. "CUBILUX CB5 Analog Stereo — Line In" vs "… — Microphone"),
-because Pulse models physical jacks as ports of one device; selecting an
-entry switches the port automatically (`pactl set-source-port` /
-`set-sink-port`) when the modem starts. Audio capture uses PulseAudio's
-`parecord` (works under PipeWire via `pipewire-pulse`), and building the
-playback engine (flutter_soloud / miniaudio) needs the ALSA development
-headers:
+Linux: audio capture uses PulseAudio's `parecord` (works under PipeWire via
+`pipewire-pulse`), and building the playback engine (flutter_soloud /
+miniaudio) needs the ALSA development headers:
 
 ```bash
 sudo apt install pulseaudio-utils libasound2-dev
@@ -147,7 +116,7 @@ sudo apt install pulseaudio-utils libasound2-dev
 ## Offline analysis (PCM files)
 
 For demod testing and offline analysis, transmissions can be captured to a
-raw PCM file: **Settings tab → Write PCM…** picks the file, **Close** ends
+raw PCM file: **Channel tab → Write PCM…** picks the file, **Close** ends
 the capture. The format is mono, 48 kHz, 64-bit IEEE 754 little-endian
 floats (`.f64`); only transmitted bursts are written — idle time adds
 nothing, so a capture of N bursts is simply the N waveforms back to back.
@@ -190,19 +159,10 @@ tools/hc_gen -m "test" | tools/hc_ruin --fade-rate 2 --fade-k 4 \
     --snr 10 --pn-sigma 3 | tools/hc_info
 ```
 
-**hc_view** renders a constellation-diagram PNG from a capture, mirroring
-the app's Signal Quality tab: constellation on the left, the SNR/EVM/BER
-and CRC figures as text on the right. With multiple bursts in the file it
-renders the last one (`--burst N` selects another):
-
-```bash
-tools/hc_gen -m "test" | tools/hc_ruin --snr 8 | tools/hc_view -o quality.png
-```
-
 All tools build from the same Makefile in `tools/src` (committed as
 `hc_info.mk`; rename to `Makefile` or run `make -f hc_info.mk`).
 
 ## Quick start without a radio
 
-Settings tab → enable **Loopback test mode** → Start. Anything you transmit
+Channel tab → enable **Loopback test mode** → Start. Anything you transmit
 is decoded by your own receiver, which exercises the whole chain.

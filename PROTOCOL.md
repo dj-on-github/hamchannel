@@ -1,7 +1,5 @@
 # HamChannel On-Air Protocol Specification
 
-![alt text](hamchannel_icon.svg "Ham Channel Icon")
-
 **Version 2 · protocol as implemented in `lib/dsp`, `lib/fec`, `lib/modem`, `lib/proto`**
 *(v2 adds PRBS scrambling of all LDPC info bytes; v1 receivers reject v2
 bursts at the header check and vice versa.)*
@@ -80,13 +78,22 @@ x ^= x << 5    (mod 2^32)
 | Symbol rate          | 41.667 symbols/s               |
 | First active bin     | profile-dependent (see below)  |
 
-Three channel profiles (both stations must use the same one):
+Seven channel profiles (both stations must use the same one):
 
 | Profile | Active carriers A | Audio span        | Occupied BW | Pilots | Data carriers |
 |---------|-------------------|-------------------|-------------|--------|---------------|
 | HF      | 52 (bins 8–59)    | 375 Hz – 2812 Hz  | ≤ 2.8 kHz   | 6      | 46            |
+| 4 kHz   | 64 (bins 16–79)   | 750 Hz – 3750 Hz  | ≤ 4 kHz     | 8      | 56            |
+| 6 kHz   | 112 (bins 16–127) | 750 Hz – 6000 Hz  | ≤ 6 kHz     | 14     | 98            |
+| 8 kHz   | 152 (bins 16–167) | 750 Hz – 7875 Hz  | ≤ 8 kHz     | 19     | 133           |
+| 10 kHz  | 192 (bins 16–207) | 750 Hz – 9750 Hz  | ≤ 10 kHz    | 24     | 168           |
 | Narrow  | 240 (bins 16–255) | 750 Hz – 12.0 kHz | ≤ 12 kHz    | 30     | 210           |
 | Wide    | 480 (bins 16–495) | 750 Hz – 23.25 kHz| ≤ 24 kHz    | 60     | 420           |
+
+The 4–10 kHz profiles form a test ladder for finding how much occupied
+bandwidth a real radio's audio path passes cleanly; they use the same
+frame format, modulations and LDPC codes with proportionally fewer
+carriers.
 
 The HF profile fits a 2.8 kHz SSB channel and uses the identical burst
 format, modulations and LDPC codes — only the carrier count and first bin

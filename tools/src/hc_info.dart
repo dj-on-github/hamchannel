@@ -54,8 +54,12 @@ Future<void> main(List<String> argv) async {
   }
   final widths = switch (widthArg) {
     'hf' => [ChannelWidth.hf],
-    'narrow' => [ChannelWidth.narrow],
-    'wide' => [ChannelWidth.wide],
+    '4k' || '4khz' => [ChannelWidth.b4k],
+    '6k' || '6khz' => [ChannelWidth.b6k],
+    '8k' || '8khz' => [ChannelWidth.b8k],
+    '10k' || '10khz' => [ChannelWidth.b10k],
+    'narrow' || '12k' || '12khz' => [ChannelWidth.narrow],
+    'wide' || '24k' || '24khz' => [ChannelWidth.wide],
     'auto' => ChannelWidth.values,
     _ => _usage(2),
   };
@@ -140,8 +144,8 @@ Future<void> main(List<String> argv) async {
 
 Never _usage(int code) {
   final out = code == 0 ? stdout : stderr;
-  out.writeln('usage: hc_info [--width hf|narrow|wide|auto] [--verbose] '
-      '[<capture.f64>]');
+  out.writeln('usage: hc_info [--width hf|4k|6k|8k|10k|narrow|wide|auto] '
+      '[--verbose] [<capture.f64>]');
   out.writeln('       (reads stdin when no filename is given)');
   exit(code);
 }

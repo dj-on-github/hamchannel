@@ -25,10 +25,8 @@ class _ChannelTabState extends State<ChannelTab> {
   @override
   void initState() {
     super.initState();
-    // Populate the audio device pulldowns once on first open. Re-run when
-    // either list is empty: a partial enumeration (e.g. transient pactl or
-    // plugin failure, or a device plugged in later) must not stick.
-    if (widget.service.inputDevices.isEmpty ||
+    // Populate the audio device pulldowns once on first open.
+    if (widget.service.inputDevices.isEmpty &&
         widget.service.outputDevices.isEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         widget.service.refreshAudioDevices();
@@ -99,6 +97,10 @@ class _ChannelTabState extends State<ChannelTab> {
                         value: cfg.width,
                         items: const {
                           ChannelWidth.hf: 'HF — 2.8 kHz (SSB)',
+                          ChannelWidth.b4k: '4 kHz',
+                          ChannelWidth.b6k: '6 kHz',
+                          ChannelWidth.b8k: '8 kHz',
+                          ChannelWidth.b10k: '10 kHz',
                           ChannelWidth.narrow: 'Narrow — 12 kHz',
                           ChannelWidth.wide: 'Wide — 24 kHz',
                         },
@@ -186,17 +188,6 @@ class _ChannelTabState extends State<ChannelTab> {
                               child:
                                   CircularProgressIndicator(strokeWidth: 2))
                           : const Icon(Icons.refresh),
-                    ),
-                    IconButton(
-                      tooltip: 'Play a test tone on the selected output',
-                      onPressed: s.audioTesting ? null : s.audioSelfTest,
-                      icon: s.audioTesting
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child:
-                                  CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.volume_up),
                     ),
                   ]),
                   const SizedBox(height: 8),

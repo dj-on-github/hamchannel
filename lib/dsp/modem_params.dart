@@ -4,15 +4,21 @@
 /// giving a subcarrier spacing of 46.875 Hz. An OFDM symbol with its 1/8
 /// cyclic prefix is 1152 samples (24 ms) long.
 ///
-/// Three channel profiles are provided:
-///  * hf     — audio energy confined to a 2.8 kHz SSB channel
-///  * narrow — audio energy confined to a 12 kHz channel
-///  * wide   — audio energy confined to a 24 kHz channel
+/// Channel profiles (occupied audio bandwidth):
+///  * hf     — 2.8 kHz (SSB; starts at 375 Hz)
+///  * b4k    — 4 kHz
+///  * b6k    — 6 kHz
+///  * b8k    — 8 kHz
+///  * b10k   — 10 kHz
+///  * narrow — 12 kHz
+///  * wide   — 24 kHz
+/// All profiles share the numerology, modulations, LDPC codes and frame
+/// format; only the subcarrier count (and HF's first bin) differ.
 library;
 
 import 'dart:math' as math;
 
-enum ChannelWidth { hf, narrow, wide }
+enum ChannelWidth { hf, b4k, b6k, b8k, b10k, narrow, wide }
 
 enum SubcarrierModulation { bpsk, qpsk, qam16, qam64 }
 
@@ -74,12 +80,31 @@ class ModemParams {
 
   /// Number of active subcarriers.
   ///   hf:     52 (375 Hz .. 2812 Hz — fits a 2.8 kHz SSB channel)
+  ///   b4k:    64 (750 Hz .. 3750 Hz)
+  ///   b6k:   112 (750 Hz .. 6000 Hz)
+  ///   b8k:   152 (750 Hz .. 7875 Hz)
+  ///   b10k:  192 (750 Hz .. 9750 Hz)
   ///   narrow: 240 (750 Hz .. 12 kHz)
   ///   wide:   480 (750 Hz .. 23.25 kHz)
   int get activeCarriers => switch (width) {
         ChannelWidth.hf => 52,
+        ChannelWidth.b4k => 64,
+        ChannelWidth.b6k => 112,
+        ChannelWidth.b8k => 152,
+        ChannelWidth.b10k => 192,
         ChannelWidth.narrow => 240,
         ChannelWidth.wide => 480,
+      };
+
+  /// Short bandwidth label, e.g. "12kHz".
+  String get bandwidthLabel => switch (width) {
+        ChannelWidth.hf => '2.8kHz',
+        ChannelWidth.b4k => '4kHz',
+        ChannelWidth.b6k => '6kHz',
+        ChannelWidth.b8k => '8kHz',
+        ChannelWidth.b10k => '10kHz',
+        ChannelWidth.narrow => '12kHz',
+        ChannelWidth.wide => '24kHz',
       };
 
   /// Pilot every [pilotSpacing]-th active carrier.

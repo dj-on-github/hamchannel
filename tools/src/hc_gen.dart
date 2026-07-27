@@ -31,7 +31,8 @@ import 'package:hamchannel/proto/packets.dart';
 Never _usage(int code) {
   final out = code == 0 ? stdout : stderr;
   out.writeln(
-      'usage: hc_gen [--width hf|narrow|wide] [--mod bpsk|qpsk|16-qam|64-qam]\n'
+      'usage: hc_gen [--width hf|4k|6k|8k|10k|narrow|wide]\n'
+      '              [--mod bpsk|qpsk|16-qam|64-qam]\n'
       '              [--ldpc 1/2|2/3|3/4|5/6] [--call <callsign>]\n'
       '              [--dest <destination callsign or CQ>]\n'
       '              --message|-m <message contents> [-o <filename>]');
@@ -59,8 +60,12 @@ Future<void> main(List<String> argv) async {
       case '--width':
         width = switch (next(i++).toLowerCase()) {
           'hf' => ChannelWidth.hf,
-          'narrow' => ChannelWidth.narrow,
-          'wide' => ChannelWidth.wide,
+          '4k' || '4khz' => ChannelWidth.b4k,
+          '6k' || '6khz' => ChannelWidth.b6k,
+          '8k' || '8khz' => ChannelWidth.b8k,
+          '10k' || '10khz' => ChannelWidth.b10k,
+          'narrow' || '12k' || '12khz' => ChannelWidth.narrow,
+          'wide' || '24k' || '24khz' => ChannelWidth.wide,
           _ => _usage(2),
         };
       case '--mod':

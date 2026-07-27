@@ -29,8 +29,8 @@ const sampleRate = ModemParams.sampleRate;
 
 Never _usage(int code) {
   final out = code == 0 ? stdout : stderr;
-  out.writeln('usage: hc_view [--width hf|narrow|wide|auto] [--burst N] '
-      '[-o <out.png>] [<capture.f64>]');
+  out.writeln('usage: hc_view [--width hf|4k|6k|8k|10k|narrow|wide|auto] '
+      '[--burst N] [-o <out.png>] [<capture.f64>]');
   out.writeln('       (reads stdin when no filename is given)');
   exit(code);
 }
@@ -65,8 +65,12 @@ Future<void> main(List<String> argv) async {
   }
   final widths = switch (widthArg) {
     'hf' => [ChannelWidth.hf],
-    'narrow' => [ChannelWidth.narrow],
-    'wide' => [ChannelWidth.wide],
+    '4k' || '4khz' => [ChannelWidth.b4k],
+    '6k' || '6khz' => [ChannelWidth.b6k],
+    '8k' || '8khz' => [ChannelWidth.b8k],
+    '10k' || '10khz' => [ChannelWidth.b10k],
+    'narrow' || '12k' || '12khz' => [ChannelWidth.narrow],
+    'wide' || '24k' || '24khz' => [ChannelWidth.wide],
     'auto' => ChannelWidth.values,
     _ => _usage(2),
   };
@@ -260,11 +264,7 @@ im.Image _render({
       font: im.arial24, x: tx, y: ty, color: titleC);
   ty += 44;
 
-  final bw = switch (width) {
-    ChannelWidth.hf => '2.8 kHz',
-    ChannelWidth.narrow => '12 kHz',
-    ChannelWidth.wide => '24 kHz',
-  };
+  final bw = ModemParams(width: width).bandwidthLabel;
   final carriers = ModemParams(width: width).activeCarriers;
   final h = burst.header;
   final t = snap.at;

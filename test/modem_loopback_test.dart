@@ -310,6 +310,41 @@ void main() {
     // runOnce uses a receiver with capture off (the default).
   });
 
+  test('bandwidth ladder profiles round-trip at 6 dB', () {
+    for (final w in [
+      ChannelWidth.b4k,
+      ChannelWidth.b6k,
+      ChannelWidth.b8k,
+      ChannelWidth.b10k,
+    ]) {
+      final got = runOnce(
+        width: w,
+        mod: SubcarrierModulation.qpsk,
+        rate: LdpcRate.half,
+        payload: payload,
+        snrDb: 6,
+      );
+      expect(got, hasLength(1), reason: '${w.name}: burst detected');
+      expect(got.first.payload, equals(payload), reason: w.name);
+    }
+  });
+
+  test('6 kHz profile tracks +-50 ppm clock offset', () {
+    for (final ppm in [-50.0, 50.0]) {
+      final got = runOnce(
+        width: ChannelWidth.b6k,
+        mod: SubcarrierModulation.qpsk,
+        rate: LdpcRate.half,
+        payload: payload,
+        snrDb: 15,
+        sfoPpm: ppm,
+        seed: 11,
+      );
+      expect(got, hasLength(1), reason: 'b6k sfo $ppm');
+      expect(got.first.payload, equals(payload), reason: 'b6k sfo $ppm');
+    }
+  });
+
   test('HF profile (2.8 kHz): QPSK r1/2 at 6 dB', () {
     final got = runOnce(
       width: ChannelWidth.hf,
