@@ -2,7 +2,7 @@ name: hamchannel
 description: "OFDM/LDPC soundcard data modem for VHF/UHF FM radios."
 publish_to: 'none'
 
-version: 1.0.0+1
+version: 0.2.0+1
 
 environment:
   sdk: ^3.8.0

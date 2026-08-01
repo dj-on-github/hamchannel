@@ -22,6 +22,7 @@ import subprocess
 import sys
 
 appname="hamchannel"
+prettyname = "Ham Channel"
 
 def fail(msg):
     print(f"release_macos: error: {msg}", file=sys.stderr)
@@ -87,7 +88,7 @@ def main():
         os.remove(dmg)  # create-dmg refuses to overwrite an existing file
     run([
         "create-dmg",
-        "--volname", f"Ham Channel {abc} Installer",
+        "--volname", f"{prettyname} {abc} Installer",
         "--background", f"release/{appname}_release_colateral/dmg_background_7b5.png",
         "--window-pos", "200", "120",
         "--window-size", "480", "400",  # match the background image size. PNG is 960x686 

@@ -21,7 +21,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>1.0.0</string>
+	<string>0.2.0</string>
 	<key>CFBundleSupportedPlatforms</key>
 	<array>
 		<string>MacOSX</string>
@@ -46,6 +46,8 @@
 	<string>17A324</string>
 	<key>LSMinimumSystemVersion</key>
 	<string>10.15</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>HamChannel needs Bluetooth to connect to your radio.</string>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 com.example. All rights reserved.</string>
 	<key>NSMainNibFile</key>

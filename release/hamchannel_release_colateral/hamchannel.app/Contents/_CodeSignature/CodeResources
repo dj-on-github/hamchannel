@@ -47,10 +47,10 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			hR8jtPr8o3T8w7onCgxP6Wa7Txs=
+			SgwgYB2WgDcZy4/i2vbQQ7ARJlg=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"851f23b4fafca374fcc3ba270a0c4fe966bb4f1b" or cdhash H"2d657e8b85236d122fadfcfbeb62a9ab81c5ff40"</string>
+			<string>cdhash H"4a0c20601d96803719cb8fe2daf6d043b0112658" or cdhash H"ae85452fb74790f1c830248b2c8928be81458168"</string>
 		</dict>
 		<key>Frameworks/FlutterFramework_-35AC8DEE1728A85C_PackageProduct.framework</key>
 		<dict>
@@ -65,10 +65,10 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			xL4FqthCQeeDUHAhPzfkpnks1gg=
+			LYrHDxLEIP7VGVmulHc6CM6Feso=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"c4be05aad84241e7835070213f37e4a6792cd608" or cdhash H"6953f83747a66b1fcb3f90c79685a9825c518a6e"</string>
+			<string>cdhash H"2d8ac70f12c420fed51959ae94773a08ce857aca" or cdhash H"952cc17678a06f8517e11f6949898f9854e3176e"</string>
 		</dict>
 		<key>Frameworks/flutter-soloud.framework</key>
 		<dict>
@@ -83,10 +83,10 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			/eAPFEPvDQl/t6xZ5hA3jcg5G/E=
+			tLjDadLf4/C1At5t+HZ6+1AXG1g=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"fde00f1443ef0d097fb7ac59e610378dc8391bf1" or cdhash H"e13b9e482453f1af083b387c468efd865c350518"</string>
+			<string>cdhash H"b4b8c369d2dfe3f0b502de6df8767afb50171b58" or cdhash H"3829b976022911fcf399d5ffe2d6c5f23d311d49"</string>
 		</dict>
 		<key>Resources/AppIcon.icns</key>
 		<dict>
