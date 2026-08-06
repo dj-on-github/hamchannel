@@ -140,6 +140,29 @@
     .downloads a:hover { border-color: var(--signal-dim); background: var(--panel); transform: translateY(-1px); }
     .downloads a .plat { font-weight: 700; font-size: 0.98rem; }
     .downloads a .ext { font-family: "IBM Plex Mono", monospace; font-size: 0.82rem; color: var(--signal); }
+    /* Multi-format card (Linux): one label, several format links */
+    .downloads .dl-card {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+    }
+    .downloads .dl-card .plat { font-weight: 700; font-size: 0.98rem; }
+    .downloads .dl-card .exts { display: flex; flex-wrap: wrap; gap: 6px 12px; }
+    .downloads .dl-card .exts a {
+      display: inline;
+      padding: 0;
+      border: none;
+      background: none;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.82rem;
+      color: var(--signal);
+      text-decoration: none;
+    }
+    .downloads .dl-card .exts a:hover { text-decoration: underline; transform: none; }
 
     /* Waterfall strip */
     .waterfall {
@@ -374,9 +397,22 @@ radio speaker/data out ───────────────────
           <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-macos.dmg">
             <span class="plat">macOS</span><span class="ext">.dmg</span>
           </a>
-          <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.tar.gz">
-            <span class="plat">Linux x64</span><span class="ext">.tar.gz</span>
-          </a>
+          <div class="dl-card">
+            <span class="plat">Linux x64</span>
+            <span class="exts">
+              <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.AppImage">.AppImage</a>
+              <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.deb">.deb</a>
+              <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.tar.gz">.tar.gz</a>
+            </span>
+          </div>
+          <div class="dl-card">
+            <span class="plat">Linux arm64</span>
+            <span class="exts">
+              <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-arm64.AppImage">.AppImage</a>
+              <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-arm64.deb">.deb</a>
+              <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-arm64.tar.gz">.tar.gz</a>
+            </span>
+          </div>
           <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-android.apk">
             <span class="plat">Android</span><span class="ext">.apk</span>
           </a>

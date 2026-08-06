@@ -22,7 +22,8 @@ Grab the latest build for your platform from the
 
 - [Windows (x64) (.zip)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-windows-x64.zip) — 64-bit Windows 10/11 (audio cables only; no Bluetooth radio support on Windows yet).
 - [macOS (.dmg)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-macos.dmg) — unsigned; on first launch right-click the app and choose **Open**.
-- [Linux (x64) (.tar.gz)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.tar.gz) — extract and run `hamchannel` (needs `pulseaudio-utils`; see [Building & running](#building--running)).
+- Linux (x64): [.AppImage](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.AppImage) · [.deb](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.deb) · [.tar.gz](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.tar.gz) — needs `pulseaudio-utils`; see [Building & running](#building--running).
+- Linux (arm64): [.AppImage](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-arm64.AppImage) · [.deb](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-arm64.deb) · [.tar.gz](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-arm64.tar.gz).
 - [Android (.apk)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-android.apk) — enable "install from unknown sources" to sideload.
 - [iOS (.ipa)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-ios.ipa) — unsigned; install with a sideloading tool such as AltStore or Sideloadly.
 
