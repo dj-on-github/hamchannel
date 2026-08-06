@@ -117,6 +117,30 @@
     }
     a.button.ghost:hover { color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal-dim); }
 
+    /* Download grid */
+    .downloads {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 12px;
+      margin: 18px 0 4px;
+    }
+    .downloads a {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 10px;
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      text-decoration: none;
+      color: var(--ink);
+      transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+    }
+    .downloads a:hover { border-color: var(--signal-dim); background: var(--panel); transform: translateY(-1px); }
+    .downloads a .plat { font-weight: 700; font-size: 0.98rem; }
+    .downloads a .ext { font-family: "IBM Plex Mono", monospace; font-size: 0.82rem; color: var(--signal); }
+
     /* Waterfall strip */
     .waterfall {
       margin: 40px auto 0;
@@ -225,7 +249,7 @@
       <span class="dot"></span>
       <span class="name">HamChannel</span>
     </div>
-    <a class="button" href="app/">Launch the Web App</a>
+    <a class="button" href="#download">Download</a>
   </header>
 
   <main>
@@ -239,7 +263,7 @@
         ARQ layer.
       </p>
       <div class="cta-row">
-        <a class="button" href="app/">Launch the Web App</a>
+        <a class="button" href="#download">Download the App</a>
         <a class="button ghost" href="https://github.com/dj-on-github/hamchannel">View on GitHub</a>
       </div>
       <div class="waterfall"><span class="label">rx waterfall · 48 kHz · 1024-pt FFT</span></div>
@@ -339,20 +363,37 @@ radio speaker/data out ───────────────────
       </div>
     </section>
 
-    <section>
-      <h2>Run It<span class="rule"></span></h2>
+    <section id="download">
+      <h2>Download<span class="rule"></span></h2>
       <div class="panel">
-        <p class="lead">Try it now in your browser, or build the desktop app for full radio operation.</p>
-        <div class="cta-row" style="justify-content: flex-start; margin-top: 14px;">
-          <a class="button" href="app/">Launch the Web App</a>
-          <a class="button ghost" href="https://github.com/dj-on-github/hamchannel">Source &amp; desktop builds</a>
+        <p class="lead">Grab the latest build for your platform. Desktop is the primary target for on-air use.</p>
+        <div class="downloads">
+          <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-windows-x64.zip">
+            <span class="plat">Windows x64</span><span class="ext">.zip</span>
+          </a>
+          <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-macos.dmg">
+            <span class="plat">macOS</span><span class="ext">.dmg</span>
+          </a>
+          <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.tar.gz">
+            <span class="plat">Linux x64</span><span class="ext">.tar.gz</span>
+          </a>
+          <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-android.apk">
+            <span class="plat">Android</span><span class="ext">.apk</span>
+          </a>
+          <a href="https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-ios.ipa">
+            <span class="plat">iOS</span><span class="ext">.ipa</span>
+          </a>
+          <a href="https://github.com/dj-on-github/hamchannel/releases/latest">
+            <span class="plat">All releases</span><span class="ext">&rarr;</span>
+          </a>
         </div>
         <p class="note">
-          <strong>Note:</strong> HamChannel is designed as a desktop application
-          (macOS, Linux, Windows) with direct access to the soundcard and radio
-          audio path. The web build lets you explore the interface in a browser;
-          for on-air use with a radio, run the desktop version. You are
-          responsible for operating within your amateur licence.
+          <strong>Note:</strong> HamChannel needs direct access to the soundcard
+          and radio audio path, so it runs as a native app rather than in a
+          browser. The macOS and iOS builds are unsigned (right-click &rarr;
+          Open on macOS; sideload the iOS .ipa with AltStore/Sideloadly), and
+          the Android APK is debug-signed. You are responsible for operating
+          within your amateur licence.
         </p>
       </div>
     </section>

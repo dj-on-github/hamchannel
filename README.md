@@ -15,6 +15,20 @@ The complete on-air protocol (OFDM numerology, LDPC construction, burst
 format, packet wire formats, ARQ procedures) is specified in
 [PROTOCOL.md](PROTOCOL.md).
 
+## Download
+
+Grab the latest build for your platform from the
+[releases page](https://github.com/dj-on-github/hamchannel/releases/latest):
+
+- [Windows (x64) (.zip)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-windows-x64.zip) — 64-bit Windows 10/11 (audio cables only; no Bluetooth radio support on Windows yet).
+- [macOS (.dmg)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-macos.dmg) — unsigned; on first launch right-click the app and choose **Open**.
+- [Linux (x64) (.tar.gz)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-linux-x64.tar.gz) — extract and run `hamchannel` (needs `pulseaudio-utils`; see [Building & running](#building--running)).
+- [Android (.apk)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-android.apk) — enable "install from unknown sources" to sideload.
+- [iOS (.ipa)](https://github.com/dj-on-github/hamchannel/releases/latest/download/hamchannel-ios.ipa) — unsigned; install with a sideloading tool such as AltStore or Sideloadly.
+
+Desktop builds are the primary target for on-air use. The macOS and iOS
+builds are unsigned, and the Android APK is signed with a debug key.
+
 ## Physical layer
 
 | Profile | Occupancy | Subcarriers | Audio span | Net @ QPSK 1/2 |
