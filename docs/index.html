@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HamChannel</title>
+  <meta name="description" content="An OFDM soundcard data modem for VHF/UHF FM ham radios. Send text messages and files between two stations with LDPC forward error correction and a reliable ARQ layer." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0f14;
+      --panel: #111a22;
+      --panel-2: #0d151c;
+      --ink: #d7e3ec;
+      --ink-soft: #90a4b4;
+      --ink-faint: #5c7183;
+      --signal: #38e0a6;      /* phosphor green */
+      --signal-dim: #1f9e74;
+      --amber: #f2b64c;       /* dial amber */
+      --sky: #4aa8ff;         /* carrier blue */
+      --border: #1e2c38;
+      --grid: rgba(56, 224, 166, 0.06);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.65;
+      background-image:
+        radial-gradient(1200px 600px at 50% -10%, rgba(74, 168, 255, 0.10), transparent 60%),
+        repeating-linear-gradient(0deg, var(--grid) 0, var(--grid) 1px, transparent 1px, transparent 26px),
+        repeating-linear-gradient(90deg, var(--grid) 0, var(--grid) 1px, transparent 1px, transparent 26px);
+    }
+    a { color: var(--signal); }
+
+    h1, h2, h3 { font-family: "Orbitron", "Inter", sans-serif; letter-spacing: 0.02em; }
+
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 24px;
+      background: rgba(10, 15, 20, 0.85);
+      backdrop-filter: blur(8px);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: "Orbitron", sans-serif;
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: var(--ink);
+      line-height: 1;
+    }
+    .brand .dot {
+      width: 10px; height: 10px; border-radius: 50%;
+      background: var(--signal);
+      box-shadow: 0 0 10px var(--signal);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+    a.button {
+      display: inline-block;
+      background: var(--signal);
+      color: #052018;
+      text-decoration: none;
+      padding: 11px 24px;
+      border-radius: 8px;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.95rem;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 0 0 1px var(--signal-dim), 0 8px 24px rgba(56, 224, 166, 0.25);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+    }
+    a.button:hover { background: #4bf0b6; transform: translateY(-1px); }
+
+    main { max-width: 980px; margin: 0 auto; padding: 0 24px 80px; }
+
+    /* Hero */
+    .hero { padding: 66px 0 32px; text-align: center; }
+    .callsign {
+      display: inline-block;
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.85rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--signal);
+      margin-bottom: 14px;
+    }
+    .hero h1 { font-size: 3.1rem; margin: 0 0 16px; line-height: 1.05; }
+    .hero h1 .accent { color: var(--signal); text-shadow: 0 0 22px rgba(56, 224, 166, 0.35); }
+    .hero p.tagline {
+      color: var(--ink-soft);
+      font-size: 1.18rem;
+      max-width: 680px;
+      margin: 0 auto 30px;
+    }
+    .cta-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    a.button.ghost {
+      background: transparent;
+      color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--border);
+    }
+    a.button.ghost:hover { color: var(--signal); box-shadow: inset 0 0 0 1px var(--signal-dim); }
+
+    /* Waterfall strip */
+    .waterfall {
+      margin: 40px auto 0;
+      height: 92px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      position: relative;
+      background:
+        repeating-linear-gradient(90deg,
+          rgba(74,168,255,0.00) 0px,
+          rgba(74,168,255,0.28) 2px,
+          rgba(56,224,166,0.20) 5px,
+          rgba(242,182,76,0.10) 9px,
+          rgba(74,168,255,0.00) 14px);
+      box-shadow: inset 0 0 40px rgba(0,0,0,0.6);
+    }
+    .waterfall::after {
+      content: "";
+      position: absolute; inset: 0;
+      background: linear-gradient(180deg, rgba(10,15,20,0.0), rgba(10,15,20,0.85));
+    }
+    .waterfall .label {
+      position: absolute; left: 12px; bottom: 8px; z-index: 2;
+      font-family: "IBM Plex Mono", monospace; font-size: 0.72rem; color: var(--ink-faint);
+    }
+
+    section { margin-top: 60px; }
+    section h2 { font-size: 1.7rem; margin: 0 0 8px; }
+    section h2 .rule { display: block; width: 72px; height: 2px; margin-top: 12px; background: linear-gradient(90deg, var(--signal), transparent); }
+    .lead { color: var(--ink-soft); font-size: 1.05rem; }
+
+    .panel {
+      background: linear-gradient(180deg, var(--panel), var(--panel-2));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 26px 30px;
+    }
+
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+    .feature {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .feature .icon { font-size: 1.4rem; margin-bottom: 8px; display: inline-block; }
+    .feature h3 { margin: 0 0 6px; font-size: 1.05rem; color: var(--ink); font-family: "Inter", sans-serif; font-weight: 700; }
+    .feature p { margin: 0; color: var(--ink-soft); font-size: 0.94rem; }
+
+    /* Specs table */
+    .specs { width: 100%; border-collapse: collapse; font-family: "IBM Plex Mono", monospace; font-size: 0.9rem; }
+    .specs th, .specs td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    .specs th { color: var(--signal); font-weight: 600; }
+    .specs td { color: var(--ink-soft); }
+    .specs tr:last-child td { border-bottom: none; }
+
+    ol.steps { padding-left: 20px; margin: 0; }
+    ol.steps li { margin-bottom: 10px; color: var(--ink-soft); }
+    ol.steps li::marker { color: var(--signal); }
+    ol.steps li strong { color: var(--ink); }
+
+    pre.wiring {
+      font-family: "IBM Plex Mono", monospace;
+      font-size: 0.82rem;
+      color: var(--ink-soft);
+      background: var(--panel-2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 16px;
+      overflow-x: auto;
+      margin: 16px 0 0;
+    }
+
+    .note {
+      margin-top: 20px;
+      color: var(--ink-soft);
+      font-size: 0.9rem;
+      background: var(--panel-2);
+      border-left: 3px solid var(--amber);
+      border-radius: 8px;
+      padding: 14px 16px;
+    }
+    .note strong { color: var(--amber); }
+
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 30px 24px;
+      text-align: center;
+      color: var(--ink-faint);
+      font-size: 0.9rem;
+    }
+    footer .cq { font-family: "IBM Plex Mono", monospace; color: var(--signal-dim); margin-bottom: 8px; letter-spacing: 0.15em; }
+    footer a { color: var(--signal); margin: 0 8px; text-decoration: none; }
+    footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 520px) {
+      .hero h1 { font-size: 2.2rem; }
+      .brand span.name { display: none; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="dot"></span>
+      <span class="name">HamChannel</span>
+    </div>
+    <a class="button" href="app/">Launch the Web App</a>
+  </header>
+
+  <main>
+    <section class="hero">
+      <span class="callsign">· · —  OFDM · LDPC · ARQ  — · ·</span>
+      <h1>Ham<span class="accent">Channel</span></h1>
+      <p class="tagline">
+        An OFDM soundcard data modem for VHF/UHF FM ham radios. Send text
+        messages and files between two stations through the audio jacks &mdash;
+        with LDPC forward error correction and a reliable selective-repeat
+        ARQ layer.
+      </p>
+      <div class="cta-row">
+        <a class="button" href="app/">Launch the Web App</a>
+        <a class="button ghost" href="https://github.com/dj-on-github/hamchannel">View on GitHub</a>
+      </div>
+      <div class="waterfall"><span class="label">rx waterfall · 48 kHz · 1024-pt FFT</span></div>
+    </section>
+
+    <section>
+      <h2>What It Does<span class="rule"></span></h2>
+      <div class="panel">
+        <p class="lead">
+          HamChannel turns a laptop and an FM radio into a digital data link.
+          Wire the laptop's headphone output to the radio's mic input and the
+          radio's speaker output back to the laptop's mic input, and two
+          stations can exchange text and files over the air. The modem uses
+          multi-carrier OFDM, systematic LDPC codes with a CRC on every block,
+          and a half-duplex ARQ protocol that resends only the chunks that were
+          lost &mdash; so file transfers complete reliably even on a marginal
+          link. Every transmitted frame carries your callsign for station
+          identification. Bluetooth handy-talkies in the Benshi family can be
+          used cable-free.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Inside the App<span class="rule"></span></h2>
+      <div class="features">
+        <div class="feature">
+          <span class="icon">💬</span>
+          <h3>Messages</h3>
+          <p>Terminal-style messaging sent as a single burst, acknowledged and retried automatically.</p>
+        </div>
+        <div class="feature">
+          <span class="icon">📤</span>
+          <h3>Send Files</h3>
+          <p>Pick and queue files with per-transfer progress; add files to your shared folder.</p>
+        </div>
+        <div class="feature">
+          <span class="icon">📥</span>
+          <h3>Files</h3>
+          <p>Receive files (SHA-256 verified), and request files from the remote station's shared folder.</p>
+        </div>
+        <div class="feature">
+          <span class="icon">📈</span>
+          <h3>Signal Quality</h3>
+          <p>Constellation diagram of the equalized symbols with SNR and EVM statistics.</p>
+        </div>
+        <div class="feature">
+          <span class="icon">⚙️</span>
+          <h3>Settings</h3>
+          <p>Channel width, modulation, LDPC rate, callsigns, audio device selection, TX level and more.</p>
+        </div>
+        <div class="feature">
+          <span class="icon">📋</span>
+          <h3>FCC Logging</h3>
+          <p>Optionally append one log line per transmission and reception to a file you choose.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Physical Layer<span class="rule"></span></h2>
+      <div class="panel">
+        <table class="specs">
+          <thead>
+            <tr><th>Profile</th><th>Occupancy</th><th>Subcarriers</th><th>Net @ QPSK 1/2</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>HF (SSB)</td><td>2.8 kHz</td><td>52</td><td>1.9 kbit/s</td></tr>
+            <tr><td>4 kHz</td><td>4 kHz</td><td>64</td><td>2.3 kbit/s</td></tr>
+            <tr><td>6 kHz</td><td>6 kHz</td><td>112</td><td>4.1 kbit/s</td></tr>
+            <tr><td>8 kHz</td><td>8 kHz</td><td>152</td><td>5.5 kbit/s</td></tr>
+            <tr><td>10 kHz</td><td>10 kHz</td><td>192</td><td>7.0 kbit/s</td></tr>
+            <tr><td>Narrow</td><td>12 kHz</td><td>240</td><td>8.75 kbit/s</td></tr>
+            <tr><td>Wide</td><td>24 kHz</td><td>480</td><td>17.5 kbit/s</td></tr>
+          </tbody>
+        </table>
+        <p class="note" style="border-left-color: var(--sky);">
+          48 kHz sample rate, 1024-point FFT (46.875 Hz spacing), 1/8 cyclic
+          prefix, 24 ms symbols. Subcarrier modulation: BPSK, QPSK, 16-QAM or
+          64-QAM. FEC: IRA-type LDPC (n = 2048) at rates 1/2, 2/3, 3/4, 5/6.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Get on the Air<span class="rule"></span></h2>
+      <div class="panel">
+        <ol class="steps">
+          <li>Wire the laptop's <strong>headphone out</strong> to the radio's mic input (through a 10:1 attenuator or isolation transformer), and the radio's speaker/data out back to the laptop's <strong>mic in</strong>.</li>
+          <li>Enable <strong>VOX</strong> on the radio, or use a supported Bluetooth handy-talkie for cable-free keying.</li>
+          <li>Open Settings, enter your <strong>callsign</strong>, pick the audio devices, channel width and modulation, and set the TX level.</li>
+          <li>Set volumes so the RX meter reaches mid-scale without clipping; start narrow and step up only if the link stays solid.</li>
+          <li>Use the <strong>Messages</strong> and <strong>Files</strong> tabs to exchange data with the other station.</li>
+        </ol>
+        <pre class="wiring">laptop headphone out ──[attenuator 10:1 / isolation xfmr]──▶ radio mic in
+radio speaker/data out ────────────────────────────────────▶ laptop mic in</pre>
+      </div>
+    </section>
+
+    <section>
+      <h2>Run It<span class="rule"></span></h2>
+      <div class="panel">
+        <p class="lead">Try it now in your browser, or build the desktop app for full radio operation.</p>
+        <div class="cta-row" style="justify-content: flex-start; margin-top: 14px;">
+          <a class="button" href="app/">Launch the Web App</a>
+          <a class="button ghost" href="https://github.com/dj-on-github/hamchannel">Source &amp; desktop builds</a>
+        </div>
+        <p class="note">
+          <strong>Note:</strong> HamChannel is designed as a desktop application
+          (macOS, Linux, Windows) with direct access to the soundcard and radio
+          audio path. The web build lets you explore the interface in a browser;
+          for on-air use with a radio, run the desktop version. You are
+          responsible for operating within your amateur licence.
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="cq">CQ CQ CQ · DE HAMCHANNEL · K</div>
+    <a href="https://github.com/dj-on-github/hamchannel">Project on GitHub</a>
+    <a href="https://github.com/dj-on-github/hamchannel/blob/main/PROTOCOL.md">Protocol</a>
+    <a href="https://github.com/dj-on-github/hamchannel/issues">Report an issue</a>
+  </footer>
+</body>
+</html>

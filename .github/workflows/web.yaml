@@ -1,0 +1,48 @@
+name: Web
+
+# Builds the Flutter web version of HamChannel and publishes it into docs/app
+# so GitHub Pages serves it at https://<owner>.github.io/<repo>/app/.
+# Only the latest build is kept (the previous one is replaced each run).
+
+on:
+  push:
+    branches: [main]
+    # Ignore pushes that only touch docs/ (including this job's own commit)
+    # so publishing the build does not retrigger the workflow.
+    paths-ignore:
+      - 'docs/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Web
+        run: flutter build web --release --base-href "/${{ github.event.repository.name }}/app/"
+
+      - name: Publish web build to docs/app
+        run: |
+          # Replace the previous web build so only the latest version is kept.
+          rm -rf docs/app
+          mkdir -p docs/app
+          cp -r build/web/* docs/app/
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/app
+          git commit -m "Deploy web build ${{ github.sha }}" || echo "No changes to commit"
+          git push origin main
